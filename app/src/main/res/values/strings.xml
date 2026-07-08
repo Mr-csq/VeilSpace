@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">系统工具</string>
+
+    <!-- Navigation -->
+    <string name="nav_disguise">伪装页面</string>
+    <string name="nav_home">主页</string>
+    <string name="nav_files">文件空间</string>
+
+    <!-- Disguise Screen -->
+    <string name="disguise_title">系统启动器</string>
+    <string name="disguise_subtitle">系统服务正常运行中</string>
+
+    <!-- Home Screen -->
+    <string name="home_title">隐私空间</string>
+    <string name="home_apps">应用</string>
+    <string name="home_files">文件</string>
+
+<!-- Files Screen -->
+    <string name="files_title">文件空间</string>
+
+</resources>
+
+

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- 管理设备策略 -->
+        <force-lock />
+        <wipe-data />
+        <reset-password />
+
+        <!-- Profile 管理 -->
+        <set-global-proxy />
+        <disable-keyguard-features />
+    </uses-policies>
+</device-admin>

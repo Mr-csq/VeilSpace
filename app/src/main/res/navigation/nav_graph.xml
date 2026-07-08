@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/onboardingFragment"
+        android:name="com.system.launcher.tools.ui.onboarding.OnboardingFragment"
+        android:label="引导页"
+        tools:layout="@layout/fragment_onboarding">
+        <action
+            android:id="@+id/action_onboarding_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/onboardingFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.system.launcher.tools.ui.home.HomeFragment"
+        android:label="@string/nav_home"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_home_to_files"
+            app:destination="@id/filesFragment" />
+        <action
+            android:id="@+id/action_home_to_app_management"
+            app:destination="@id/appManagementFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/appManagementFragment"
+        android:name="com.system.launcher.tools.ui.home.AppManagementFragment"
+        android:label="应用管理"
+        tools:layout="@layout/fragment_app_management" />
+
+    <fragment
+        android:id="@+id/filesFragment"
+        android:name="com.system.launcher.tools.ui.files.FilesFragment"
+        android:label="@string/nav_files"
+        tools:layout="@layout/fragment_files" />
+
+</navigation>

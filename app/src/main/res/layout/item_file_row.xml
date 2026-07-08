@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="76dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/bg_file_row"
+    android:foreground="?attr/selectableItemBackground"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp">
+
+    <FrameLayout
+        android:id="@+id/thumb_container"
+        android:layout_width="56dp"
+        android:layout_height="56dp"
+        android:background="@drawable/bg_file_thumb"
+        android:clipToOutline="true"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/iv_file_icon"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="文件缩略图"
+            android:scaleType="centerCrop" />
+
+        <View
+            android:id="@+id/selection_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_file_selected_overlay"
+            android:visibility="gone" />
+
+        <FrameLayout
+            android:id="@+id/check_container"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="4dp"
+            android:background="@drawable/bg_file_check"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="17dp"
+                android:layout_height="17dp"
+                android:layout_gravity="center"
+                android:contentDescription="已选择"
+                android:src="@drawable/ic_check_white" />
+        </FrameLayout>
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tv_file_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#111827"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@id/tv_file_meta"
+        app:layout_constraintEnd_toStartOf="@id/tv_duration"
+        app:layout_constraintStart_toEndOf="@id/thumb_container"
+        app:layout_constraintTop_toTopOf="@id/thumb_container"
+        app:layout_constraintVertical_chainStyle="packed" />
+
+    <TextView
+        android:id="@+id/tv_file_meta"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="#7A8599"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="@id/thumb_container"
+        app:layout_constraintEnd_toStartOf="@id/tv_duration"
+        app:layout_constraintStart_toEndOf="@id/thumb_container"
+        app:layout_constraintTop_toBottomOf="@id/tv_file_name" />
+
+    <TextView
+        android:id="@+id/tv_duration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="#CC000000"
+        android:paddingStart="6dp"
+        android:paddingTop="3dp"
+        android:paddingEnd="6dp"
+        android:paddingBottom="3dp"
+        android:textColor="@android:color/white"
+        android:textSize="12sp"
+        app:layout_constraintBottom_toBottomOf="@id/thumb_container"
+        app:layout_constraintEnd_toEndOf="parent" />
+</androidx.constraintlayout.widget.ConstraintLayout>

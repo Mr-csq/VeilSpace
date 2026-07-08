@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_file_page"
+    tools:context=".ui.files.FilesFragment">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/normal_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="88dp"
+            android:background="@drawable/bg_file_toolbar"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/files_title"
+                    android:textColor="#111827"
+                    android:textSize="28sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tv_file_summary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:textColor="#7A8599"
+                    android:textSize="13sp"
+                    tools:text="12 个项目 · 328 MB" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btn_refresh"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="刷新"
+                android:src="@android:drawable/ic_popup_sync" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/selection_toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="72dp"
+            android:background="@drawable/bg_file_toolbar"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <ImageButton
+                android:id="@+id/btn_cancel_selection"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="取消选择"
+                android:src="@drawable/ic_close_24" />
+
+            <TextView
+                android:id="@+id/tv_selection_count"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#111827"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                tools:text="已选择 3 项" />
+
+            <ImageButton
+                android:id="@+id/btn_select_all"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="全选"
+                android:src="@drawable/ic_select_all_24" />
+
+            <ImageButton
+                android:id="@+id/btn_delete_selected"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="删除"
+                android:src="@drawable/ic_delete_24" />
+        </LinearLayout>
+
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_file_chip"
+            app:tabBackground="@drawable/bg_file_chip"
+            app:tabIndicatorHeight="0dp"
+            app:tabMode="fixed"
+            app:tabRippleColor="@android:color/transparent"
+            app:tabSelectedTextColor="@android:color/white"
+            app:tabTextColor="#5F6B7A" />
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_files"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="12dp"
+                android:paddingTop="14dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="24dp" />
+
+            <LinearLayout
+                android:id="@+id/empty_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:id="@+id/tv_empty_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="暂无文件"
+                    android:textColor="#7A8599"
+                    android:textSize="17sp" />
+
+                <TextView
+                    android:id="@+id/tv_empty_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text=""
+                    android:textColor="#A2AAB7"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <ProgressBar
+                android:id="@+id/progress_bar"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone" />
+        </FrameLayout>
+    </LinearLayout>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
