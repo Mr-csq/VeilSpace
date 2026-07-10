@@ -7,7 +7,10 @@ import android.content.pm.PackageManager
 import android.content.pm.PackageManager.NameNotFoundException
 import android.os.Build
 import android.util.Log
+import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
+import com.system.launcher.tools.data.model.InstallVerification
+import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.ProfileAppStore
 
 class WorkProfilePackageReceiver : BroadcastReceiver() {
@@ -30,19 +33,22 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
 
     fun cacheAndHideIfNeeded(context: Context, manager: WorkProfileManager, packageName: String) {
         if (!manager.isPackageInstalledInProfile(packageName)) {
-            ProfileAppStore.updateSystemState(
-                context = context,
-                packageName = packageName,
-                installed = false,
-                launchable = false,
-                diagnosticReason = "应用当前未安装在隐藏空间中"
-            )
-            Log.w(TAG, "Marked profile package as not installed after package event: $packageName")
+            markUnverifiedIfCached(context, packageName, "收到包事件，但当前无法确认应用是否已安装在隐藏空间中")
+            Log.w(TAG, "Package event could not verify profile install: $packageName")
             return
         }
-        if (ProfileAppStore.containsApp(context, packageName)) {
+
+        val alreadyCached = ProfileAppStore.containsApp(context, packageName)
+        if (manager.shouldDeferPackageEventAutoHide(packageName)) {
+            if (!alreadyCached) cacheAppMetadata(context, packageName)
+            Log.i(TAG, "Package event auto-hide skipped during active launch: $packageName cached=$alreadyCached")
+            return
+        }
+
+        if (alreadyCached) {
             cacheAppMetadata(context, packageName)
-            Log.i(TAG, "Package already cached, refreshed metadata and skipped auto-hide: $packageName")
+            manager.hideAppInProfileIfAllowed(packageName, "packageReceiverCached")
+            Log.i(TAG, "Package already cached, refreshed metadata and applied auto-hide policy: $packageName")
             return
         }
         cacheAndHide(context, manager, packageName)
@@ -58,9 +64,13 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
 
     fun cacheAppMetadata(context: Context, packageName: String): Boolean {
         return try {
+            val manager = WorkProfileManager(context)
             val pm = context.packageManager
             val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_DISABLED_COMPONENTS or PackageManager.MATCH_UNINSTALLED_PACKAGES
-            if (!WorkProfileManager(context).isPackageInstalledInProfile(packageName)) return false
+            if (!manager.isPackageInstalledInProfile(packageName)) {
+                markUnverifiedIfCached(context, packageName, "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中")
+                return false
+            }
             val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
             } else {
@@ -68,39 +78,32 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
                 pm.getApplicationInfo(packageName, flags)
             }
             if ((appInfo.flags and android.content.pm.ApplicationInfo.FLAG_INSTALLED) == 0) {
-                ProfileAppStore.updateSystemState(
-                    context = context,
-                    packageName = packageName,
-                    installed = false,
-                    launchable = false,
-                    diagnosticReason = "应用当前未安装在隐藏空间中"
-                )
-                Log.w(TAG, "Skip caching metadata for not-installed profile package: $packageName")
+                markUnverifiedIfCached(context, packageName, "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中")
+                Log.w(TAG, "Skip caching metadata for not-installed-or-hidden profile package: $packageName")
                 return false
             }
-            val launchable = WorkProfileManager(context).canLaunchPackageInProfile(packageName)
+            val launchVerification = manager.resolveLaunchVerificationInProfile(packageName, InstallVerification.CONFIRMED_INSTALLED)
             val app = AppInfo(
                 packageName = packageName,
                 appName = pm.getApplicationLabel(appInfo).toString(),
                 icon = pm.getApplicationIcon(appInfo),
                 isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0,
                 showOnHome = true,
-                installed = true,
-                launchable = launchable,
-                diagnosticReason = if (launchable) "" else "未找到可启动入口，可能是系统组件或启动入口被系统限制"
+                entrySource = AppEntrySource.DISCOVERED_INSTALLED,
+                installVerification = InstallVerification.CONFIRMED_INSTALLED,
+                launchVerification = launchVerification,
+                diagnosticReason = if (launchVerification == LaunchVerification.NOT_LAUNCHABLE) {
+                    "未找到可启动入口，可能是系统组件或启动入口被系统限制"
+                } else {
+                    ""
+                }
             )
             ProfileAppStore.upsertApp(context, app)
             Log.i(TAG, "Cached profile package metadata: $packageName")
             true
         } catch (e: NameNotFoundException) {
-            ProfileAppStore.updateSystemState(
-                context = context,
-                packageName = packageName,
-                installed = false,
-                launchable = false,
-                diagnosticReason = "应用当前未安装在隐藏空间中"
-            )
-            Log.w(TAG, "Skip caching metadata for missing profile package: $packageName")
+            markUnverifiedIfCached(context, packageName, "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中")
+            Log.w(TAG, "Skip caching metadata for unverified profile package: $packageName")
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error caching profile package metadata: $packageName", e)
@@ -108,12 +111,18 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun markUnverifiedIfCached(context: Context, packageName: String, reason: String) {
+        if (!ProfileAppStore.containsApp(context, packageName)) return
+        ProfileAppStore.updateVerificationState(
+            context = context,
+            packageName = packageName,
+            installVerification = InstallVerification.UNKNOWN,
+            launchVerification = LaunchVerification.UNKNOWN,
+            diagnosticReason = reason
+        )
+    }
+
     companion object {
         private const val TAG = "WorkProfilePkgReceiver"
     }
 }
-
-
-
-
-

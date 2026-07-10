@@ -1,6 +1,6 @@
 # VeilSpace 当前项目状态
 
-更新时间：2026-07-08
+更新时间：2026-07-09
 
 本文档用于在新对话、新开发任务或代码交接时快速恢复项目上下文。后续继续开发前，建议先阅读本文档，再阅读关键源码文件。
 
@@ -101,16 +101,23 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 
 - 普通应用：从隐藏空间启动后，返回桌面或离开前台时再隐藏，减少桌面残留。
 - 后台应用：用户可长按选择“允许后台运行（不自动隐藏）”。这类应用不自动隐藏，避免被杀死。
-- 系统/依赖应用：部分包名被加入永不自动隐藏列表，避免破坏 Google Play、手机管家等依赖链。
+- 系统/依赖应用：通过集中策略表声明角色、启动方式、前置依赖、自动隐藏、残留图标清理等行为，避免继续在业务逻辑里散落包名判断。
+- 桌面残留图标：策略表可声明需要在工作资料和主资料同时清理的 launcher shortcut，并可触发 launcher requery。
 
-已知需要继续优化：
+当前已落地：
 
-- 当前隐藏策略已经能覆盖大多数应用，但仍建议后续重构为明确的策略表，而不是继续散落硬编码。
-- 对每个应用记录最近一次成功启动方式、是否允许自动隐藏、是否系统依赖，会更稳定。
+- `ProfileAppPolicyTable` 是隐藏/启动策略的集中入口。
+- 手机管家已覆盖 `com.miui.securitycenter` 和 `com.miui.securitymanager` 两种工作资料图标来源，返回桌面或首页刷新时会重新隐藏两者并清理残留 shortcut。
+- 工作资料设置 `com.android.settings` 作为策略入口显示为“工作资料设置”，优先启动 `com.android.settings/.MiuiSettings`，再用 `android.settings.SETTINGS` 兜底，并标记为不自动隐藏，避免启动失败后触发反复 package 事件。
+- 浏览器 `com.android.browser` 作为策略入口，优先启动 `com.android.browser.launch.SplashActivity`，失败时用 `https://www.mi.com` VIEW intent 兜底，避免隐藏状态下被误判为不可启动。
+- 妻社 `com.example.app` 已加入策略表，覆盖其混淆 launcher activity shortcut，返回桌面或首页刷新时会重新隐藏并清理残留 shortcut。
+- Google Play、Google core、文件、安装器、MIUI 系统工具等策略也通过同一张表声明。
 
 核心文件：
 
+- `app/src/main/java/com/system/launcher/tools/data/policy/ProfileAppPolicyTable.kt`
 - `app/src/main/java/com/system/launcher/tools/work/WorkProfileManager.kt`
+- `app/src/main/java/com/system/launcher/tools/work/LauncherShortcutCleaner.kt`
 - `app/src/main/java/com/system/launcher/tools/data/repository/ProfileAppPolicyStore.kt`
 
 ## 6. APK 安装与应用管理
@@ -128,14 +135,16 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 - 曾经出现 `PACKAGE_REMOVED` 事件被误认为卸载，导致缓存被删除。
 - 微信曾经出现无法降级安装、主空间版本/工作资料版本冲突等问题，后续通过日志诊断处理。
 
-建议后续优化：
+当前已完成的状态分层：
 
-- 应用列表模型区分三种状态：
-  - `verifiedInstalled`：确认安装在工作资料。
-  - `cachedOnly`：仅缓存存在，等待验证。
-  - `systemCandidate`：系统候选入口。
-- 安装失败时不要生成正式入口，只记录诊断信息。
-- 移除时先执行工作资料卸载，成功后再删除缓存和图标文件。
+- 应用入口内部按三条轴记录，而不是只用 `installed/launchable` 布尔值：
+  - `entrySource`：`CACHED`、`DISCOVERED_INSTALLED`、`SYSTEM_CANDIDATE`、`INTERNAL`。
+  - `installVerification`：`CONFIRMED_INSTALLED`、`CONFIRMED_MISSING`、`UNKNOWN`。
+  - `launchVerification`：`LAUNCHABLE`、`NOT_LAUNCHABLE`、`POLICY_LAUNCH_ONLY`、`UNKNOWN`。
+- 刷新和包事件中“当前查不到”只会写入 `UNKNOWN`，不会直接当成未安装。
+- 只有卸载结果确认后才写入 `CONFIRMED_MISSING`；首页会过滤确认已卸载的记录，管理页仍保留记录供移除。
+- 系统候选入口来自策略表，启动前会按特殊规则尝试启用/验证，失败时只记录诊断，不删除缓存。
+- 安装失败时不生成正式入口；安装完成后确认存在才写入 `CONFIRMED_INSTALLED`。
 
 相关文件：
 
@@ -183,9 +192,11 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 
 - shell 对工作资料用户的查询权限受限，例如 `pm list packages --user 12` 可能失败。
 - 某些 MIUI 系统应用即使显示在工作资料，也可能无法正常启动。
-- 小米手机管家在工作资料内可以显示，但点击后曾经一闪返回；可能依赖主空间特权服务或厂商私有能力。
+- 小米手机管家在当前测试机上实际首页入口是 `com.miui.securitymanager`，它会跳转 `com.miui.securitycenter`；启动前必须先准备并取消隐藏 `securitycenter`，否则会因 `miui.intent.action.SECURITY_CENTER` 找不到而闪退。
 - 主空间关闭“手机管家 - 病毒扫描/安装监控”后，某些安装限制会解除，但工作资料里未必有同一套设置入口。
 - 小米应用商店、手机管家等系统应用不一定完整支持 Work Profile。
+- `com.android.settings` 在 MIUI 上不能只按普通 launcher activity 处理；`android.settings.MANAGED_PROFILE_SETTINGS` 会触发 `MANAGE_USERS` 权限限制，当前策略优先走 `com.android.settings/.MiuiSettings` 和 `android.settings.SETTINGS`。
+- `com.android.browser` 可能处于 installed=true 但 hidden=true，普通 launcher 查询会误判不可启动；需要策略组件/VIEW intent 启动。
 
 结论：
 
@@ -196,7 +207,7 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 
 需要后续继续关注：
 
-1. 小米手机管家在工作资料内显示但启动不稳定。
+1. MIUI 系统工具仍需按机型维护策略表；当前已处理 `com.miui.securitymanager` 依赖 `com.miui.securitycenter` 的手机管家启动链路，以及 `com.miui.securitycenter` / `com.miui.securitymanager` / `com.example.app` 的工作资料桌面残留图标清理。
 2. 部分 MIUI 系统设置入口无法从工作资料直接打开。
 3. 工作资料桌面图标隐藏依赖系统行为，普通应用、后台应用、系统应用需要分策略处理。
 4. README 仍是早期脚手架说明，已经落后于真实项目状态。
@@ -217,7 +228,7 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 ### 模块 B：应用管理稳定性
 
 - 重构应用列表状态模型。
-- 将隐藏/启动/后台运行策略表集中管理。
+- 继续扩展隐藏/启动/后台运行策略表，新增机型差异策略和内置诊断展示。
 - 完善安装失败诊断和缓存一致性。
 
 ### 模块 C：文件管理完善

@@ -6,8 +6,11 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.util.Log
+import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
+import com.system.launcher.tools.data.model.InstallVerification
+import com.system.launcher.tools.data.model.LaunchVerification
 import java.io.File
 import java.io.FileOutputStream
 import org.json.JSONArray
@@ -50,8 +53,9 @@ object ProfileAppStore {
                         ?: previous?.sortOrder
                         ?: ((index + 1) * SORT_STEP),
                     keepAlive = app.keepAlive,
-                    installed = app.installed,
-                    launchable = app.launchable,
+                    entrySource = app.entrySource,
+                    installVerification = app.installVerification,
+                    launchVerification = app.launchVerification,
                     iconStatus = iconStatus,
                     lastSeenAt = app.lastSeenAt,
                     diagnosticReason = app.diagnosticReason
@@ -83,7 +87,7 @@ object ProfileAppStore {
 
     fun loadHomeApps(context: Context): List<AppInfo> {
         return loadApps(context)
-            .filter { it.showOnHome }
+            .filter { it.showOnHome && it.installVerification != InstallVerification.CONFIRMED_MISSING }
             .sortedWith(compareBy<AppInfo> { it.sortOrder }.thenBy { it.appName })
     }
 
@@ -125,7 +129,11 @@ object ProfileAppStore {
             if (app.packageName == packageName) {
                 app.copy(
                     showOnHome = showOnHome,
-                    sortOrder = if (showOnHome && app.sortOrder == Int.MAX_VALUE) nextHomeSortOrder(context) else app.sortOrder
+                    sortOrder = when {
+                        !showOnHome -> Int.MAX_VALUE
+                        app.sortOrder == Int.MAX_VALUE -> nextHomeSortOrder(context)
+                        else -> app.sortOrder
+                    }
                 )
             } else {
                 app
@@ -143,39 +151,65 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
-    fun moveHomeApp(context: Context, packageName: String, direction: Int): List<AppInfo> {
-        val allApps = loadApps(context).toMutableList()
-        val homeApps = allApps.filter { it.showOnHome }.sortedWith(compareBy<AppInfo> { it.sortOrder }.thenBy { it.appName }).toMutableList()
-        val index = homeApps.indexOfFirst { it.packageName == packageName }
-        val target = index + direction
-        if (index !in homeApps.indices || target !in homeApps.indices) return allApps
-        val moved = homeApps.removeAt(index)
-        homeApps.add(target, moved)
-        val orderByPackage = homeApps.mapIndexed { i, app -> app.packageName to ((i + 1) * SORT_STEP) }.toMap()
-        saveApps(context, allApps.map { app -> orderByPackage[app.packageName]?.let { app.copy(sortOrder = it) } ?: app })
+    fun reorderHomeApps(context: Context, orderedPackageNames: List<String>): List<AppInfo> {
+        val orderedPackages = orderedPackageNames.distinct()
+        val orderByPackage = orderedPackages.mapIndexed { index, packageName ->
+            packageName to ((index + 1) * SORT_STEP)
+        }.toMap()
+        var fallbackOrder = (orderedPackages.size + 1) * SORT_STEP
+        val apps = loadApps(context).map { app ->
+            val explicitOrder = orderByPackage[app.packageName]
+            when {
+                explicitOrder != null && app.showOnHome && app.installVerification != InstallVerification.CONFIRMED_MISSING -> {
+                    app.copy(sortOrder = explicitOrder)
+                }
+                app.showOnHome && app.installVerification != InstallVerification.CONFIRMED_MISSING -> {
+                    val order = fallbackOrder
+                    fallbackOrder += SORT_STEP
+                    app.copy(sortOrder = order)
+                }
+                else -> app.copy(sortOrder = Int.MAX_VALUE)
+            }
+        }
+        saveApps(context, apps)
         return loadApps(context)
     }
 
-    fun updateSystemState(
+    fun updateVerificationState(
         context: Context,
         packageName: String,
-        installed: Boolean,
-        launchable: Boolean,
+        installVerification: InstallVerification,
+        launchVerification: LaunchVerification,
         diagnosticReason: String,
+        entrySource: AppEntrySource? = null,
         lastSeenAt: Long = System.currentTimeMillis()
     ): List<AppInfo> {
-        val apps = loadApps(context).map { app ->
+        val existingApps = loadApps(context)
+        var changed = false
+        val apps = existingApps.map { app ->
             if (app.packageName == packageName) {
-                app.copy(
-                    installed = installed,
-                    launchable = launchable,
+                val updated = app.copy(
+                    entrySource = entrySource ?: app.entrySource,
+                    installVerification = installVerification,
+                    launchVerification = launchVerification,
                     diagnosticReason = diagnosticReason,
                     lastSeenAt = lastSeenAt
                 )
+                if (app.entrySource != updated.entrySource ||
+                    app.installVerification != updated.installVerification ||
+                    app.launchVerification != updated.launchVerification ||
+                    app.diagnosticReason != updated.diagnosticReason
+                ) {
+                    changed = true
+                    updated
+                } else {
+                    app
+                }
             } else {
                 app
             }
         }
+        if (!changed) return existingApps
         saveApps(context, apps)
         return loadApps(context)
     }
@@ -194,12 +228,30 @@ object ProfileAppStore {
             showOnHome = existing.showOnHome,
             sortOrder = existing.sortOrder,
             keepAlive = existing.keepAlive || incoming.keepAlive,
-            installed = incoming.installed,
-            launchable = incoming.launchable,
+            entrySource = mergeEntrySource(existing.entrySource, incoming.entrySource),
+            installVerification = mergeInstallVerification(existing.installVerification, incoming.installVerification),
+            launchVerification = mergeLaunchVerification(existing.launchVerification, incoming.launchVerification),
             iconStatus = if (incoming.icon != null) IconStatus.OK else existing.iconStatus,
             lastSeenAt = incoming.lastSeenAt,
             diagnosticReason = incoming.diagnosticReason.ifBlank { existing.diagnosticReason }
         )
+    }
+
+    private fun mergeEntrySource(existing: AppEntrySource, incoming: AppEntrySource): AppEntrySource {
+        return when {
+            existing == AppEntrySource.INTERNAL || incoming == AppEntrySource.INTERNAL -> AppEntrySource.INTERNAL
+            existing == AppEntrySource.SYSTEM_CANDIDATE || incoming == AppEntrySource.SYSTEM_CANDIDATE -> AppEntrySource.SYSTEM_CANDIDATE
+            incoming == AppEntrySource.DISCOVERED_INSTALLED -> AppEntrySource.DISCOVERED_INSTALLED
+            else -> existing
+        }
+    }
+
+    private fun mergeInstallVerification(existing: InstallVerification, incoming: InstallVerification): InstallVerification {
+        return if (incoming == InstallVerification.UNKNOWN) existing else incoming
+    }
+
+    private fun mergeLaunchVerification(existing: LaunchVerification, incoming: LaunchVerification): LaunchVerification {
+        return if (incoming == LaunchVerification.UNKNOWN) existing else incoming
     }
 
     private fun nextHomeSortOrder(context: Context): Int {
@@ -238,8 +290,9 @@ object ProfileAppStore {
                         showOnHome = true,
                         sortOrder = (index + 1) * SORT_STEP,
                         keepAlive = false,
-                        installed = true,
-                        launchable = true,
+                        entrySource = AppEntrySource.CACHED,
+                        installVerification = InstallVerification.CONFIRMED_INSTALLED,
+                        launchVerification = LaunchVerification.LAUNCHABLE,
                         iconStatus = IconStatus.OK,
                         lastSeenAt = System.currentTimeMillis(),
                         diagnosticReason = ""
@@ -333,8 +386,9 @@ object ProfileAppStore {
         val showOnHome: Boolean,
         val sortOrder: Int,
         val keepAlive: Boolean,
-        val installed: Boolean,
-        val launchable: Boolean,
+        val entrySource: AppEntrySource,
+        val installVerification: InstallVerification,
+        val launchVerification: LaunchVerification,
         val iconStatus: IconStatus,
         val lastSeenAt: Long,
         val diagnosticReason: String
@@ -348,8 +402,11 @@ object ProfileAppStore {
                 put("showOnHome", showOnHome)
                 put("sortOrder", sortOrder)
                 put("keepAlive", keepAlive)
-                put("installed", installed)
-                put("launchable", launchable)
+                put("entrySource", entrySource.name)
+                put("installVerification", installVerification.name)
+                put("launchVerification", launchVerification.name)
+                put("installed", installVerification == InstallVerification.CONFIRMED_INSTALLED)
+                put("launchable", launchVerification == LaunchVerification.LAUNCHABLE || launchVerification == LaunchVerification.POLICY_LAUNCH_ONLY)
                 put("iconStatus", iconStatus.name)
                 put("lastSeenAt", lastSeenAt)
                 put("diagnosticReason", diagnosticReason)
@@ -371,8 +428,9 @@ object ProfileAppStore {
                 showOnHome = showOnHome,
                 sortOrder = sortOrder,
                 keepAlive = keepAlive,
-                installed = installed,
-                launchable = launchable,
+                entrySource = entrySource,
+                installVerification = installVerification,
+                launchVerification = launchVerification,
                 iconStatus = resolvedIconStatus,
                 lastSeenAt = lastSeenAt,
                 diagnosticReason = diagnosticReason
@@ -384,6 +442,8 @@ object ProfileAppStore {
                 val packageName = item.optString("packageName")
                 if (packageName.isBlank()) return null
                 val storedIcon = item.optString("iconFileName")
+                val diagnosticReason = item.optString("diagnosticReason")
+                val installVerification = parseInstallVerification(item, diagnosticReason)
                 return StoredApp(
                     packageName = packageName,
                     appName = item.optString("appName").takeIf { it.isNotBlank() } ?: packageName,
@@ -392,13 +452,51 @@ object ProfileAppStore {
                     showOnHome = item.optBoolean("showOnHome", true),
                     sortOrder = item.optInt("sortOrder", (index + 1) * SORT_STEP),
                     keepAlive = item.optBoolean("keepAlive", false),
-                    installed = item.optBoolean("installed", true),
-                    launchable = item.optBoolean("launchable", true),
-                    iconStatus = runCatching { IconStatus.valueOf(item.optString("iconStatus", IconStatus.OK.name)) }.getOrDefault(IconStatus.OK),
+                    entrySource = parseEnum(item.optString("entrySource"), AppEntrySource.CACHED),
+                    installVerification = installVerification,
+                    launchVerification = parseLaunchVerification(item, installVerification),
+                    iconStatus = parseEnum(item.optString("iconStatus"), IconStatus.OK),
                     lastSeenAt = item.optLong("lastSeenAt", System.currentTimeMillis()),
-                    diagnosticReason = item.optString("diagnosticReason")
+                    diagnosticReason = diagnosticReason
                 )
+            }
+
+            private fun parseInstallVerification(item: JSONObject, diagnosticReason: String): InstallVerification {
+                val parsed = parseEnumOrNull<InstallVerification>(item.optString("installVerification"))
+                if (parsed != null) return parsed
+                if (!item.has("installed")) return InstallVerification.UNKNOWN
+                if (item.optBoolean("installed", true)) return InstallVerification.CONFIRMED_INSTALLED
+                return if (diagnosticReason.contains("已卸载")) {
+                    InstallVerification.CONFIRMED_MISSING
+                } else {
+                    InstallVerification.UNKNOWN
+                }
+            }
+
+            private fun parseLaunchVerification(item: JSONObject, installVerification: InstallVerification): LaunchVerification {
+                val parsed = parseEnumOrNull<LaunchVerification>(item.optString("launchVerification"))
+                if (parsed != null) return parsed
+                if (!item.has("launchable")) return LaunchVerification.UNKNOWN
+                if (item.optBoolean("launchable", false)) return LaunchVerification.LAUNCHABLE
+                return if (installVerification == InstallVerification.CONFIRMED_MISSING) {
+                    LaunchVerification.NOT_LAUNCHABLE
+                } else {
+                    LaunchVerification.UNKNOWN
+                }
+            }
+
+            private inline fun <reified T : Enum<T>> parseEnum(raw: String?, defaultValue: T): T {
+                return parseEnumOrNull<T>(raw) ?: defaultValue
+            }
+
+            private inline fun <reified T : Enum<T>> parseEnumOrNull(raw: String?): T? {
+                val normalized = raw?.trim().orEmpty()
+                if (normalized.isBlank()) return null
+                return enumValues<T>().firstOrNull { enumValue ->
+                    enumValue.name.equals(normalized, ignoreCase = true)
+                }
             }
         }
     }
 }
+

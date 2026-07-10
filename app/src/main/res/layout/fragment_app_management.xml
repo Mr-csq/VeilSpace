@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -43,7 +44,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="管理首页显示、后台运行、排序和异常应用"
+                android:text="整理首页顺序，查看全部应用和异常记录"
                 android:textColor="?android:textColorSecondary"
                 android:textSize="13sp" />
         </LinearLayout>
@@ -57,12 +58,60 @@
             android:src="@android:drawable/ic_popup_sync" />
     </LinearLayout>
 
+    <com.google.android.material.button.MaterialButtonToggleGroup
+        android:id="@+id/mode_group"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="2dp"
+        app:selectionRequired="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_home_order"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="首页排序"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_all_apps"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="全部应用"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_issue_apps"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="40dp"
+            android:layout_weight="1"
+            android:text="问题处理"
+            android:textSize="13sp" />
+    </com.google.android.material.button.MaterialButtonToggleGroup>
+
+    <TextView
+        android:id="@+id/tv_mode_hint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="4dp"
+        android:textColor="?android:textColorSecondary"
+        android:textSize="13sp"
+        tools:text="拖动右侧手柄调整首页顺序" />
+
     <TextView
         android:id="@+id/tv_loading"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="20dp"
-        android:paddingBottom="8dp"
+        android:paddingBottom="6dp"
         android:text="正在更新应用状态"
         android:textColor="?android:textColorSecondary"
         android:textSize="13sp"
@@ -74,6 +123,7 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:clipToPadding="false"
+        android:paddingTop="4dp"
         android:paddingBottom="16dp" />
 
     <LinearLayout
@@ -87,6 +137,7 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/tv_empty_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="暂无应用记录"
@@ -95,6 +146,7 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tv_empty_message"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

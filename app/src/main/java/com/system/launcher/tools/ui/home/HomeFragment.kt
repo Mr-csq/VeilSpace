@@ -16,6 +16,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
+import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.databinding.FragmentHomeBinding
 import com.system.launcher.tools.work.ProfilePackageMonitor
 import dagger.hilt.android.AndroidEntryPoint
@@ -170,7 +171,7 @@ class HomeFragment : Fragment() {
             findNavController().navigate(R.id.action_home_to_files)
             return
         }
-        if (!app.installed) {
+        if (!viewModel.canAttemptLaunch(app)) {
             showUnavailableAppDialog(app)
             return
         }

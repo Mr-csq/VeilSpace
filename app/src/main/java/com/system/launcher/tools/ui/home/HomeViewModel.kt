@@ -13,8 +13,12 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
+import com.system.launcher.tools.data.model.InstallVerification
+import com.system.launcher.tools.data.model.LaunchVerification
+import com.system.launcher.tools.data.repository.AppRepository
 import com.system.launcher.tools.data.repository.ProfileAppStore
 import com.system.launcher.tools.work.WorkProfileManager
 import com.system.launcher.tools.work.WorkProfilePackageReceiver
@@ -22,12 +26,14 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val workProfileManager: WorkProfileManager,
+    private val appRepository: AppRepository,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -50,30 +56,53 @@ class HomeViewModel @Inject constructor(
     private var pendingApkInstallCandidate: AppInfo? = null
     private var pendingApkInstallDiagnostic: String? = null
     private var pendingApkInstallBlocked: Boolean = false
+    private var loadProfileAppsJob: Job? = null
+    private var lastSubmittedHomeAppsKey: List<HomeAppUiKey> = emptyList()
 
-
-    fun loadProfileApps() {
-        viewModelScope.launch {
+    fun loadProfileApps(forceSubmit: Boolean = false) {
+        loadProfileAppsJob?.cancel()
+        loadProfileAppsJob = viewModelScope.launch {
             _loading.value = true
-            val cachedApps = withContext(Dispatchers.IO) {
-                ensureInternalFileManagerCached()
-                ProfileAppStore.loadHomeApps(context)
-            }
-            _profileApps.value = cachedApps
-            _loading.value = false
+            try {
+                val hasRenderedApps = !_profileApps.value.isNullOrEmpty()
+                val cachedApps = withContext(Dispatchers.IO) {
+                    ensureBaseEntriesCached()
+                    ProfileAppStore.loadHomeApps(context)
+                }
+                if (!hasRenderedApps) {
+                    Log.i(TAG, "Defer first home apps submit until refresh completes count=${cachedApps.size}")
+                } else {
+                    Log.i(TAG, "Skip cached home apps submit before refresh count=${cachedApps.size} force=$forceSubmit")
+                }
 
-            viewModelScope.launch(Dispatchers.IO) {
-                refreshCachedAppStates(cacheMissingIcons = true)
-                val refreshedApps = ProfileAppStore.loadHomeApps(context)
-                withContext(Dispatchers.Main) { _profileApps.value = refreshedApps }
+                val refreshedApps = withContext(Dispatchers.IO) {
+                    refreshCachedAppStates(cacheMissingIcons = true)
+                    val refreshed = ProfileAppStore.loadHomeApps(context)
+                    workProfileManager.rehideAppsInProfile(refreshed, "homeLoadProfileApps")
+                    refreshed
+                }
+                submitHomeAppsIfChanged(refreshedApps, forceSubmit = forceSubmit || !hasRenderedApps)
+            } finally {
+                _loading.value = false
             }
         }
+    }
+
+    private fun submitHomeAppsIfChanged(apps: List<AppInfo>, forceSubmit: Boolean = false) {
+        val key = apps.map(HomeAppUiKey::from)
+        if (!forceSubmit && key == lastSubmittedHomeAppsKey) {
+            Log.i(TAG, "Skip submitting unchanged home apps count=${apps.size}")
+            return
+        }
+        lastSubmittedHomeAppsKey = key
+        _profileApps.value = apps
+        Log.i(TAG, "Submitted home apps count=${apps.size} force=$forceSubmit")
     }
 
     fun repairHomeAppIcons(onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val repaired = withContext(Dispatchers.IO) { refreshCachedAppStates(cacheMissingIcons = true, forceIconRefresh = true) }
-            loadProfileApps()
+            loadProfileApps(forceSubmit = true)
             onComplete(repaired)
         }
     }
@@ -99,19 +128,35 @@ class HomeViewModel @Inject constructor(
         ProfileAppStore.loadApps(context).forEach { app ->
             if (app.packageName == getInternalFileManagerPackageName()) return@forEach
 
-            val installed = workProfileManager.isPackageInstalledInProfile(app.packageName)
-            val launchable = installed && workProfileManager.canLaunchPackageInProfile(app.packageName)
-            val diagnostic = buildDiagnostic(installed, launchable, app)
-            ProfileAppStore.updateSystemState(
-                context = context,
-                packageName = app.packageName,
-                installed = installed,
-                launchable = launchable,
-                diagnosticReason = diagnostic
-            )
-            changed = true
+            val installedNow = workProfileManager.isPackageInstalledInProfile(app.packageName)
+            val installVerification = when {
+                installedNow -> InstallVerification.CONFIRMED_INSTALLED
+                app.installVerification == InstallVerification.CONFIRMED_MISSING -> InstallVerification.CONFIRMED_MISSING
+                else -> InstallVerification.UNKNOWN
+            }
+            val launchVerification = if (installVerification == InstallVerification.CONFIRMED_MISSING) {
+                LaunchVerification.NOT_LAUNCHABLE
+            } else {
+                workProfileManager.resolveLaunchVerificationInProfile(app.packageName, installVerification)
+            }
+            val diagnostic = buildDiagnostic(installVerification, launchVerification, app)
+            val stateChanged = app.installVerification != installVerification ||
+                app.launchVerification != launchVerification ||
+                app.diagnosticReason != diagnostic
+            if (stateChanged) {
+                ProfileAppStore.updateVerificationState(
+                    context = context,
+                    packageName = app.packageName,
+                    installVerification = installVerification,
+                    launchVerification = launchVerification,
+                    diagnosticReason = diagnostic
+                )
+                changed = true
+            }
 
-            if (installed && (forceIconRefresh || (cacheMissingIcons && app.iconStatus != IconStatus.OK))) {
+            if (installVerification == InstallVerification.CONFIRMED_INSTALLED &&
+                (forceIconRefresh || (cacheMissingIcons && app.iconStatus != IconStatus.OK))
+            ) {
                 val cached = receiver.cacheAppMetadata(context, app.packageName)
                 changed = changed || cached
             }
@@ -119,17 +164,40 @@ class HomeViewModel @Inject constructor(
         return changed
     }
 
-    private fun buildDiagnostic(installed: Boolean, launchable: Boolean, app: AppInfo): String {
+    private fun buildDiagnostic(
+        installVerification: InstallVerification,
+        launchVerification: LaunchVerification,
+        app: AppInfo
+    ): String {
         return when {
             app.packageName == getInternalFileManagerPackageName() -> ""
-            !installed -> "应用当前未安装在隐藏空间中"
-            !launchable -> "未找到可启动入口，可能是系统组件或启动入口被系统限制"
+            installVerification == InstallVerification.CONFIRMED_MISSING -> "应用已卸载，记录仍保留，可在应用管理中移除"
+            installVerification == InstallVerification.UNKNOWN && app.entrySource == AppEntrySource.SYSTEM_CANDIDATE -> "系统候选入口，当前无法确认是否已安装在隐藏空间中"
+            installVerification == InstallVerification.UNKNOWN -> "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中"
+            launchVerification == LaunchVerification.NOT_LAUNCHABLE -> "未找到可启动入口，可能是系统组件或启动入口被系统限制"
             app.iconStatus != IconStatus.OK -> "应用图标需要修复"
             else -> ""
         }
     }
 
-    private fun ensureInternalFileManagerCached() {
+    private fun ensureBaseEntriesCached() {
+        val existingApps = ProfileAppStore.loadApps(context).associateBy { it.packageName }
+        ensureInternalFileManagerCached(existingApps[getInternalFileManagerPackageName()])
+        val candidatesToUpsert = appRepository.getSystemCandidateApps()
+            .filter { candidate -> shouldUpsertBaseEntry(existingApps[candidate.packageName], candidate) }
+        if (candidatesToUpsert.isNotEmpty()) {
+            ProfileAppStore.upsertApps(context, candidatesToUpsert)
+        }
+    }
+
+    private fun ensureInternalFileManagerCached(existing: AppInfo?) {
+        val needsUpsert = existing == null ||
+            existing.appName != INTERNAL_FILE_MANAGER_LABEL ||
+            existing.entrySource != AppEntrySource.INTERNAL ||
+            existing.installVerification != InstallVerification.CONFIRMED_INSTALLED ||
+            existing.launchVerification != LaunchVerification.LAUNCHABLE
+        if (!needsUpsert) return
+
         ProfileAppStore.upsertApp(
             context,
             AppInfo(
@@ -138,11 +206,24 @@ class HomeViewModel @Inject constructor(
                 icon = null,
                 isSystemApp = true,
                 showOnHome = true,
-                installed = true,
-                launchable = true,
+                entrySource = AppEntrySource.INTERNAL,
+                installVerification = InstallVerification.CONFIRMED_INSTALLED,
+                launchVerification = LaunchVerification.LAUNCHABLE,
                 diagnosticReason = ""
             )
         )
+    }
+
+    private fun shouldUpsertBaseEntry(existing: AppInfo?, candidate: AppInfo): Boolean {
+        existing ?: return true
+        if (existing.appName != candidate.appName && candidate.appName.isNotBlank()) return true
+        if (!existing.isSystemApp && candidate.isSystemApp) return true
+        if (existing.entrySource != AppEntrySource.SYSTEM_CANDIDATE) return true
+        if (candidate.installVerification != InstallVerification.UNKNOWN && existing.installVerification != candidate.installVerification) return true
+        if (candidate.launchVerification != LaunchVerification.UNKNOWN && existing.launchVerification != candidate.launchVerification) return true
+        if (existing.iconStatus != IconStatus.OK && candidate.icon != null) return true
+        if (existing.diagnosticReason != candidate.diagnosticReason && candidate.installVerification != InstallVerification.UNKNOWN) return true
+        return false
     }
 
     fun isInternalFileManagerApp(app: AppInfo): Boolean {
@@ -155,6 +236,11 @@ class HomeViewModel @Inject constructor(
 
     fun isFileManagerApp(app: AppInfo): Boolean {
         return workProfileManager.isFileManagerPackage(app.packageName)
+    }
+
+    fun canAttemptLaunch(app: AppInfo): Boolean {
+        if (app.installVerification == InstallVerification.CONFIRMED_MISSING) return false
+        return app.canAttemptLaunch || workProfileManager.isKnownProfileLaunchTool(app.packageName)
     }
 
     fun hideFromHome(app: AppInfo, onComplete: () -> Unit) {
@@ -210,14 +296,31 @@ class HomeViewModel @Inject constructor(
             if (installed) {
                 val cached = WorkProfilePackageReceiver().cacheAppMetadata(context, app.packageName)
                 if (!cached) {
-                    ProfileAppStore.upsertApp(context, app.copy(installed = true, launchable = true, iconStatus = if (app.icon == null) IconStatus.MISSING else IconStatus.OK))
+                    val launchVerification = workProfileManager.resolveLaunchVerificationInProfile(
+                        app.packageName,
+                        InstallVerification.CONFIRMED_INSTALLED
+                    )
+                    ProfileAppStore.upsertApp(
+                        context,
+                        app.copy(
+                            entrySource = AppEntrySource.DISCOVERED_INSTALLED,
+                            installVerification = InstallVerification.CONFIRMED_INSTALLED,
+                            launchVerification = launchVerification,
+                            iconStatus = if (app.icon == null) IconStatus.MISSING else IconStatus.OK,
+                            diagnosticReason = buildDiagnostic(InstallVerification.CONFIRMED_INSTALLED, launchVerification, app)
+                        )
+                    )
                 }
-                ProfileAppStore.updateSystemState(
+                ProfileAppStore.updateVerificationState(
                     context = context,
                     packageName = app.packageName,
-                    installed = true,
-                    launchable = workProfileManager.canLaunchPackageInProfile(app.packageName),
-                    diagnosticReason = ""
+                    installVerification = InstallVerification.CONFIRMED_INSTALLED,
+                    launchVerification = workProfileManager.resolveLaunchVerificationInProfile(
+                        app.packageName,
+                        InstallVerification.CONFIRMED_INSTALLED
+                    ),
+                    diagnosticReason = "",
+                    entrySource = AppEntrySource.DISCOVERED_INSTALLED
                 )
                 Log.i(TAG, "Finalized pending APK install candidate: ${app.packageName} cached=$cached")
             } else {
@@ -258,8 +361,9 @@ class HomeViewModel @Inject constructor(
                 icon = archiveAppInfo.loadIcon(pm),
                 isSystemApp = false,
                 showOnHome = true,
-                installed = false,
-                launchable = false,
+                entrySource = AppEntrySource.CACHED,
+                installVerification = InstallVerification.UNKNOWN,
+                launchVerification = LaunchVerification.UNKNOWN,
                 iconStatus = IconStatus.OK
             )
         } catch (e: Exception) {
@@ -307,6 +411,37 @@ class HomeViewModel @Inject constructor(
         }.onFailure { error -> Log.w(TAG, "Unable to query personal profile package version: $packageName", error) }.getOrNull()
     }
 
+    private data class HomeAppUiKey(
+        val packageName: String,
+        val appName: String,
+        val isSystemApp: Boolean,
+        val showOnHome: Boolean,
+        val sortOrder: Int,
+        val keepAlive: Boolean,
+        val entrySource: AppEntrySource,
+        val installVerification: InstallVerification,
+        val launchVerification: LaunchVerification,
+        val iconStatus: IconStatus,
+        val diagnosticReason: String
+    ) {
+        companion object {
+            fun from(app: AppInfo): HomeAppUiKey {
+                return HomeAppUiKey(
+                    packageName = app.packageName,
+                    appName = app.appName,
+                    isSystemApp = app.isSystemApp,
+                    showOnHome = app.showOnHome,
+                    sortOrder = app.sortOrder,
+                    keepAlive = app.keepAlive,
+                    entrySource = app.entrySource,
+                    installVerification = app.installVerification,
+                    launchVerification = app.launchVerification,
+                    iconStatus = app.iconStatus,
+                    diagnosticReason = app.diagnosticReason
+                )
+            }
+        }
+    }
     private data class InstalledPackageVersion(val versionName: String?, val versionCode: Long?)
 
     private fun PackageInfo.longVersionCodeCompat(): Long {
@@ -368,13 +503,78 @@ class HomeViewModel @Inject constructor(
     }
 
     fun launchApp(app: AppInfo): Boolean {
-        if (!app.installed) return false
-        return workProfileManager.launchAppInProfile(app.packageName)
+        if (app.installVerification == InstallVerification.CONFIRMED_MISSING) return false
+        val preparedApp = prepareAppForLaunch(app)
+        val knownPolicyLaunchTool = workProfileManager.isKnownProfileLaunchTool(preparedApp.packageName) ||
+            preparedApp.launchVerification == LaunchVerification.POLICY_LAUNCH_ONLY
+        if (!preparedApp.canAttemptLaunch && !knownPolicyLaunchTool) return false
+        val success = workProfileManager.launchAppInProfile(preparedApp.packageName)
+        val installVerification = if (success) {
+            InstallVerification.CONFIRMED_INSTALLED
+        } else {
+            preparedApp.installVerification
+        }
+        val launchVerification = if (success) {
+            workProfileManager.resolveLaunchVerificationInProfile(preparedApp.packageName, installVerification)
+        } else if (knownPolicyLaunchTool) {
+            LaunchVerification.POLICY_LAUNCH_ONLY
+        } else {
+            LaunchVerification.NOT_LAUNCHABLE
+        }
+        ProfileAppStore.updateVerificationState(
+            context = context,
+            packageName = preparedApp.packageName,
+            installVerification = installVerification,
+            launchVerification = launchVerification,
+            diagnosticReason = when {
+                success -> ""
+                knownPolicyLaunchTool -> "策略入口启动失败，已保留入口，可重试或使用安装环境修复"
+                else -> "启动失败，已保留入口但不会删除缓存记录"
+            },
+            entrySource = preparedApp.entrySource
+        )
+        return success
+    }
+
+    private fun prepareAppForLaunch(app: AppInfo): AppInfo {
+        if (app.entrySource != AppEntrySource.SYSTEM_CANDIDATE || app.installVerification == InstallVerification.CONFIRMED_INSTALLED) {
+            return app
+        }
+        if (app.launchVerification == LaunchVerification.POLICY_LAUNCH_ONLY ||
+            workProfileManager.isKnownProfileLaunchTool(app.packageName)
+        ) {
+            val installed = workProfileManager.isPackageInstalledInProfile(app.packageName)
+            val installVerification = if (installed) {
+                InstallVerification.CONFIRMED_INSTALLED
+            } else {
+                app.installVerification
+            }
+            return app.copy(
+                installVerification = installVerification,
+                launchVerification = LaunchVerification.POLICY_LAUNCH_ONLY,
+                diagnosticReason = buildDiagnostic(installVerification, LaunchVerification.POLICY_LAUNCH_ONLY, app)
+            )
+        }
+        val prepared = workProfileManager.prepareSystemCandidateInProfile(app.packageName)
+        val installVerification = if (prepared || workProfileManager.isPackageInstalledInProfile(app.packageName)) {
+            InstallVerification.CONFIRMED_INSTALLED
+        } else {
+            InstallVerification.UNKNOWN
+        }
+        val launchVerification = workProfileManager.resolveLaunchVerificationInProfile(app.packageName, installVerification)
+        val updated = app.copy(
+            installVerification = installVerification,
+            launchVerification = launchVerification,
+            diagnosticReason = buildDiagnostic(installVerification, launchVerification, app)
+        )
+        ProfileAppStore.updateVerificationState(
+            context = context,
+            packageName = app.packageName,
+            installVerification = installVerification,
+            launchVerification = launchVerification,
+            diagnosticReason = updated.diagnosticReason,
+            entrySource = AppEntrySource.SYSTEM_CANDIDATE
+        )
+        return updated
     }
 }
-
-
-
-
-
-

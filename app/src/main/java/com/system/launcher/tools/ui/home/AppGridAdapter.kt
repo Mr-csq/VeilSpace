@@ -12,7 +12,11 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
+import com.system.launcher.tools.data.model.IconStatus
+import com.system.launcher.tools.data.model.InstallVerification
+import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.databinding.ItemAppGridBinding
 
 /**
@@ -36,16 +40,26 @@ class AppGridAdapter(
         fun bind(app: AppInfo) {
             binding.apply {
                 tvAppName.text = app.appName
+                root.contentDescription = app.appName
                 val fallback = ContextCompat.getDrawable(root.context, R.drawable.sym_def_app_icon)
                 ivAppIcon.setImageDrawable(normalizeIcon(app.icon ?: fallback))
-                val unavailable = !app.installed || !app.launchable
-                root.alpha = if (unavailable) 0.58f else 1f
-                tvAppStatus.visibility = if (unavailable) View.VISIBLE else View.GONE
-                tvAppStatus.text = when {
-                    !app.installed -> "未安装"
-                    !app.launchable -> "不可启动"
+                val blocked = app.installVerification == InstallVerification.CONFIRMED_MISSING ||
+                    app.launchVerification == LaunchVerification.NOT_LAUNCHABLE
+                val pending = app.installVerification == InstallVerification.UNKNOWN
+                root.alpha = when {
+                    blocked -> 0.58f
+                    pending -> 0.82f
+                    else -> 1f
+                }
+                val status = when {
+                    app.installVerification == InstallVerification.CONFIRMED_MISSING -> "已卸载"
+                    app.launchVerification == LaunchVerification.NOT_LAUNCHABLE -> "不可启动"
+                    app.isSystemCandidate && app.installVerification == InstallVerification.UNKNOWN -> "候选"
+                    app.isCachedButUnverified -> "待验证"
                     else -> ""
                 }
+                tvAppStatus.visibility = if (status.isNotBlank()) View.VISIBLE else View.GONE
+                tvAppStatus.text = status
 
                 root.setOnClickListener { onAppClick(app) }
                 root.setOnLongClickListener { onAppLongClick(app) }
@@ -67,6 +81,36 @@ class AppGridAdapter(
 
     private class AppDiffCallback : DiffUtil.ItemCallback<AppInfo>() {
         override fun areItemsTheSame(oldItem: AppInfo, newItem: AppInfo): Boolean = oldItem.packageName == newItem.packageName
-        override fun areContentsTheSame(oldItem: AppInfo, newItem: AppInfo): Boolean = oldItem == newItem
+        override fun areContentsTheSame(oldItem: AppInfo, newItem: AppInfo): Boolean = oldItem.contentKey() == newItem.contentKey()
+
+        private fun AppInfo.contentKey(): AppContentKey {
+            return AppContentKey(
+                packageName = packageName,
+                appName = appName,
+                isSystemApp = isSystemApp,
+                showOnHome = showOnHome,
+                sortOrder = sortOrder,
+                keepAlive = keepAlive,
+                entrySource = entrySource,
+                installVerification = installVerification,
+                launchVerification = launchVerification,
+                iconStatus = iconStatus,
+                diagnosticReason = diagnosticReason
+            )
+        }
     }
+
+    private data class AppContentKey(
+        val packageName: String,
+        val appName: String,
+        val isSystemApp: Boolean,
+        val showOnHome: Boolean,
+        val sortOrder: Int,
+        val keepAlive: Boolean,
+        val entrySource: AppEntrySource,
+        val installVerification: InstallVerification,
+        val launchVerification: LaunchVerification,
+        val iconStatus: IconStatus,
+        val diagnosticReason: String
+    )
 }

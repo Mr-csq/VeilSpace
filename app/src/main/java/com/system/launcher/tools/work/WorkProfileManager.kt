@@ -24,6 +24,11 @@ import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import com.system.launcher.tools.data.model.AppInfo
+import com.system.launcher.tools.data.model.InstallVerification
+import com.system.launcher.tools.data.model.LaunchVerification
+import com.system.launcher.tools.data.policy.ProfileAppLaunchMode
+import com.system.launcher.tools.data.policy.ProfileAppPolicyTable
+import com.system.launcher.tools.data.policy.ProfileAppResidualHideAction
 import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -53,6 +58,7 @@ class WorkProfileManager @Inject constructor(
         context.getSharedPreferences("work_profile_main_prefs", Context.MODE_PRIVATE)
     }
     private val foregroundMonitorHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val residualHideActionLastRunAt = mutableMapOf<String, Long>()
 
     companion object {
         private const val TAG = "WorkProfileManager"
@@ -60,56 +66,16 @@ class WorkProfileManager @Inject constructor(
         const val REQUEST_CODE_ENABLE_ADMIN = 1002
         const val ACTION_OPEN_PRIVACY_SPACE = "com.system.launcher.tools.action.OPEN_PRIVACY_SPACE"
         const val ACTION_OPEN_REAL_GAME_CENTER = "com.system.launcher.tools.action.OPEN_REAL_GAME_CENTER"
+        const val ACTION_CLEANUP_LAUNCHER_SHORTCUT = "com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT"
+        const val EXTRA_CLEANUP_PACKAGE_NAME = "com.system.launcher.tools.extra.CLEANUP_PACKAGE_NAME"
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
-        private const val GOOGLE_PLAY_PACKAGE = "com.android.vending"
-        private val GOOGLE_CORE_SERVICE_PACKAGES = setOf(
-            "com.google.android.gms",
-            "com.google.android.gsf",
-            "com.google.android.configupdater",
-            "com.google.android.partnersetup",
-            "com.google.android.syncadapters.contacts",
-            "com.google.android.onetimeinitializer"
-        )
-        private val FILE_MANAGER_PACKAGES = setOf(
-            "com.google.android.documentsui",
-            "com.android.documentsui",
-            "com.android.fileexplorer"
-        )
-        private val SPECIAL_LAUNCH_COMPONENTS = mapOf(
-            "com.xiaomi.market" to listOf(
-                ComponentName("com.xiaomi.market", "com.xiaomi.market.ui.DefaultLauncherIcon"),
-                ComponentName("com.xiaomi.market", "com.xiaomi.market.ui.MarketTabActivity")
-            ),
-            "com.miui.securitycenter" to listOf(
-                ComponentName("com.miui.securitycenter", "com.miui.securityscan.MainEntryActivity"),
-                ComponentName("com.miui.securitycenter", "com.miui.securityscan.MainActivity")
-            )
-        )
         private const val ACTIVE_LAUNCH_PACKAGE = "active_launch_package"
         private const val ACTIVE_LAUNCH_STARTED_AT = "active_launch_started_at"
         private const val FOREGROUND_MONITOR_POLL_MS = 300L
+        private const val FOREGROUND_MONITOR_IDLE_POLL_MS = 1_500L
         private const val FOREGROUND_LEAVE_DEBOUNCE_MS = 300L
-        private const val GOOGLE_PLAY_MIN_FOREGROUND_MS_BEFORE_HIDE = 10_000L
         private const val FOREGROUND_MONITOR_TIMEOUT_MS = 60_000L
-        private val INSTALL_SUPPORT_PACKAGES = setOf(
-            "com.miui.packageinstaller",
-            "com.google.android.packageinstaller",
-            "com.android.packageinstaller",
-            "com.android.permissioncontroller",
-            "com.lbe.security.miui",
-            "com.miui.securitycenter",
-            "com.miui.securityadd",
-            "com.miui.guardprovider"
-        )
-        private val NEVER_AUTO_HIDE_PACKAGES = setOf(
-            "com.miui.securitycenter",
-            "com.miui.securityadd",
-            "com.miui.securitymanager",
-            "com.lbe.security.miui",
-            "com.miui.guardprovider",
-            "com.miui.packageinstaller",
-            "com.android.permissioncontroller"
-        )
+        private const val RESIDUAL_HIDE_ACTION_COOLDOWN_MS = 2_000L
     }
 
     private data class ForegroundSnapshot(
@@ -155,6 +121,7 @@ class WorkProfileManager @Inject constructor(
             showPrivacySpaceLauncherAliasInProfile()
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
+            showLauncherShortcutCleanupActivityInProfile()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
                 Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
@@ -168,6 +135,11 @@ class WorkProfileManager @Inject constructor(
             devicePolicyManager.addCrossProfileIntentFilter(
                 admin,
                 IntentFilter(ACTION_OPEN_REAL_GAME_CENTER).apply { addCategory(Intent.CATEGORY_DEFAULT) },
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
+            )
+            devicePolicyManager.addCrossProfileIntentFilter(
+                admin,
+                IntentFilter(ACTION_CLEANUP_LAUNCHER_SHORTCUT).apply { addCategory(Intent.CATEGORY_DEFAULT) },
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
             )
             devicePolicyManager.addCrossProfileIntentFilter(
@@ -301,6 +273,10 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.ui.disguise.GameCenterProxyActivity")
     }
 
+    private fun getLauncherShortcutCleanupComponent(): ComponentName {
+        return ComponentName(context.packageName, "${context.packageName}.work.LauncherShortcutCleanupActivity")
+    }
+
     fun redirectToManagedProfile(
         activity: Activity,
         targetActivity: Class<out Activity>
@@ -391,7 +367,7 @@ class WorkProfileManager @Inject constructor(
         }
 
         var changed = false
-        INSTALL_SUPPORT_PACKAGES.forEach { packageName ->
+        ProfileAppPolicyTable.installSupportPackages().forEach { packageName ->
             runCatching {
                 if (!isPackageInstalledInProfile(packageName)) {
                     enableAppInProfile(packageName)
@@ -471,18 +447,21 @@ class WorkProfileManager @Inject constructor(
                 Log.w(TAG, "Not Profile Owner, cannot install app into profile")
                 return false
             }
+            if (!isPackageKnownInProfile(packageName)) {
+                Log.i(TAG, "Skip installExistingPackage for package not visible in profile: $packageName")
+                return false
+            }
             val installed = devicePolicyManager.installExistingPackage(getAdminComponent(), packageName)
             Log.i(TAG, "installExistingPackage result for $packageName = $installed")
             installed
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException enabling app: $packageName", e)
+            Log.w(TAG, "SecurityException enabling app: $packageName message=${e.message}")
             false
         } catch (e: Exception) {
             Log.e(TAG, "Error enabling app: $packageName", e)
             false
         }
     }
-
     fun enableSystemAppInProfile(packageName: String): Boolean {
         return try {
             if (!isProfileOwner()) {
@@ -499,6 +478,25 @@ class WorkProfileManager @Inject constructor(
             Log.e(TAG, "Error enabling system app: $packageName", e)
             false
         }
+    }
+
+    fun prepareSystemCandidateInProfile(packageName: String): Boolean {
+        if (!isProfileOwner()) return false
+        if (isPackageInstalledInProfile(packageName)) {
+            unhideAppInProfile(packageName)
+            return true
+        }
+
+        val installedExisting = enableAppInProfile(packageName)
+        if (!installedExisting) {
+            enableSystemAppInProfile(packageName)
+        }
+        val installed = isPackageInstalledInProfile(packageName)
+        if (installed) {
+            unhideAppInProfile(packageName)
+        }
+        Log.i(TAG, "Prepared system candidate package=$packageName installed=$installed")
+        return installed
     }
     fun hidePrivacySpaceLauncherAliasInProfile(): Boolean {
         return setPrivacySpaceLauncherAliasEnabled(false)
@@ -522,6 +520,10 @@ class WorkProfileManager @Inject constructor(
 
     fun hideGameCenterProxyInProfile(): Boolean {
         return setGameCenterProxyEnabled(false)
+    }
+
+    fun showLauncherShortcutCleanupActivityInProfile(): Boolean {
+        return setLauncherShortcutCleanupActivityEnabled(true)
     }
 
     private fun setPrivacySpaceLauncherAliasEnabled(enabled: Boolean): Boolean {
@@ -571,60 +573,200 @@ class WorkProfileManager @Inject constructor(
         }
     }
 
+    private fun setLauncherShortcutCleanupActivityEnabled(enabled: Boolean): Boolean {
+        return try {
+            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
+            packageManager.setComponentEnabledSetting(getLauncherShortcutCleanupComponent(), state, DONT_KILL_APP)
+            Log.i(TAG, "Set launcher shortcut cleanup activity enabled=$enabled")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting launcher shortcut cleanup activity enabled=$enabled", e)
+            false
+        }
+    }
+
     fun hideAppInProfile(packageName: String): Boolean {
         return setAppHiddenInProfile(packageName, true)
     }
 
     fun hideAppInProfileIfAllowed(packageName: String, reason: String): Boolean {
-        if (packageName in NEVER_AUTO_HIDE_PACKAGES) {
-            Log.i(TAG, "Skip hiding non-hideable system tool reason=$reason package=$packageName")
-            return false
+        return hidePolicyPackagesInProfileIfAllowed(packageName, reason).any { it }
+    }
+
+    private fun hidePolicyPackagesInProfileIfAllowed(packageName: String, reason: String): List<Boolean> {
+        val policy = ProfileAppPolicyTable.resolve(packageName)
+        return policy.postLaunchHidePackageNames.map { targetPackageName ->
+            hideSingleAppInProfileIfAllowed(targetPackageName, reason).also { hidden ->
+                if (hidden || ProfileAppPolicyTable.shouldAttemptResidualHide(targetPackageName)) {
+                    applyResidualHideActions(targetPackageName, reason)
+                }
+            }
         }
-        if (ProfileAppPolicyStore.isKeepAliveApp(context, packageName)) {
-            Log.i(TAG, "Skip hiding keep-alive app reason=$reason package=$packageName")
-            return false
-        }
-        if (packageName in GOOGLE_CORE_SERVICE_PACKAGES) {
-            Log.i(TAG, "Skip hiding Google core service reason=$reason package=$packageName")
+    }
+
+    private fun hideSingleAppInProfileIfAllowed(packageName: String, reason: String): Boolean {
+        val policy = ProfileAppPolicyStore.resolvePolicy(context, packageName)
+        val blockReason = policy.autoHideBlockReason
+        if (blockReason != null) {
+            Log.i(TAG, "Skip hiding by policy reason=$reason block=$blockReason package=$packageName")
             return false
         }
         return hideAppInProfile(packageName)
     }
 
-    fun shouldNeverAutoHide(packageName: String): Boolean {
-        return packageName in NEVER_AUTO_HIDE_PACKAGES
+    private fun schedulePostHideRetries(packageName: String, reason: String) {
+        val policy = ProfileAppPolicyTable.resolve(packageName)
+        policy.postHideRetryDelaysMs.forEach { delayMs ->
+            foregroundMonitorHandler.postDelayed(
+                { hidePolicyPackagesInProfileIfAllowed(packageName, "$reason:retry${delayMs}ms") },
+                delayMs
+            )
+        }
     }
 
-    private fun unhideNeverAutoHideDependencies() {
-        if (!isProfileOwner()) return
-        NEVER_AUTO_HIDE_PACKAGES.forEach { packageName ->
-            if (!isPackageInstalledInProfile(packageName)) {
-                enableAppInProfile(packageName)
-            }
-            if (isPackageInstalledInProfile(packageName)) {
-                unhideAppInProfile(packageName)
+    private fun applyResidualHideActions(packageName: String, reason: String) {
+        for (policy in ProfileAppPolicyTable.policiesForResidualHidePackage(packageName)) {
+            for (action in policy.residualHideActions) {
+                if (!shouldRunResidualHideAction(policy.packageName, action, reason)) continue
+                when (action) {
+                    ProfileAppResidualHideAction.REAPPLY_HIDDEN_STATE -> forceReapplyHiddenState(policy.packageName, reason)
+                    ProfileAppResidualHideAction.REMOVE_LEGACY_LAUNCHER_SHORTCUTS -> requestLauncherShortcutCleanup(policy.packageName, reason)
+                    ProfileAppResidualHideAction.REQUEST_LAUNCHER_REQUERY -> requestLauncherRequery(policy.packageName, reason)
+                }
             }
         }
+    }
+
+    private fun shouldRunResidualHideAction(
+        packageName: String,
+        action: ProfileAppResidualHideAction,
+        reason: String
+    ): Boolean {
+        if (!isResidualHideActionAllowedForReason(reason)) {
+            Log.i(TAG, "Skip residual hide action by reason reason=$reason package=$packageName action=$action")
+            return false
+        }
+        val key = "$packageName:${action.name}"
+        val now = System.currentTimeMillis()
+        val lastRunAt = residualHideActionLastRunAt[key] ?: 0L
+        if (now - lastRunAt < RESIDUAL_HIDE_ACTION_COOLDOWN_MS) {
+            Log.i(TAG, "Skip residual hide action by cooldown reason=$reason package=$packageName action=$action")
+            return false
+        }
+        residualHideActionLastRunAt[key] = now
+        return true
+    }
+
+    private fun isResidualHideActionAllowedForReason(reason: String): Boolean {
+        if (reason.contains(":retry")) return false
+        return when (reason.substringBefore(":")) {
+            "foregroundChange",
+            "manualTidyDesktopResidualIcons" -> true
+            else -> false
+        }
+    }
+
+    private fun forceReapplyHiddenState(packageName: String, reason: String): Boolean {
+        return setAppHiddenInProfile(packageName, hidden = true, force = true, reason = "residual:$reason")
+    }
+
+    private fun requestLauncherShortcutCleanup(packageName: String, reason: String): Boolean {
+        val intent = Intent(ACTION_CLEANUP_LAUNCHER_SHORTCUT).apply {
+            setComponent(getLauncherShortcutCleanupComponent())
+            putExtra(EXTRA_CLEANUP_PACKAGE_NAME, packageName)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+        }
+        val activityStarted = runCatching {
+            context.startActivity(intent)
+            true
+        }.onFailure { error ->
+            Log.w(TAG, "Launcher shortcut cleanup activity request failed reason=$reason package=$packageName", error)
+        }.getOrDefault(false)
+        Log.i(TAG, "Requested launcher shortcut cleanup reason=$reason package=$packageName activity=$activityStarted")
+        return activityStarted
+    }
+
+    private fun requestLauncherRequery(packageName: String, reason: String): Boolean {
+        return runCatching {
+            val disabled = setPrivacySpaceLauncherAliasEnabled(false)
+            val enabled = setPrivacySpaceLauncherAliasEnabled(true)
+            Log.i(TAG, "Requested launcher requery reason=$reason package=$packageName disabled=$disabled enabled=$enabled")
+            disabled || enabled
+        }.onFailure { error ->
+            Log.w(TAG, "Launcher requery request failed reason=$reason package=$packageName", error)
+        }.getOrDefault(false)
+    }
+    fun shouldNeverAutoHide(packageName: String): Boolean {
+        return ProfileAppPolicyStore.shouldNeverAutoHide(packageName)
+    }
+
+    private fun preparePolicyPackagesForUse(packages: Set<String>, reason: String, targetPackageName: String? = null) {
+        if (!isProfileOwner()) return
+        packages
+            .filterNot { it == targetPackageName }
+            .forEach { packageName ->
+                runCatching {
+                    if (!isPackageInstalledInProfile(packageName)) {
+                        if (isPackageKnownInProfile(packageName)) {
+                            enableAppInProfile(packageName)
+                        } else {
+                            Log.i(TAG, "Skip unavailable policy dependency reason=$reason package=$packageName")
+                        }
+                    }
+                    if (isPackageInstalledInProfile(packageName)) {
+                        unhideAppInProfile(packageName)
+                    } else {
+                        Log.w(TAG, "Policy dependency is not installed reason=$reason package=$packageName")
+                    }
+                }.onFailure { error ->
+                    Log.w(TAG, "Unable to prepare policy dependency reason=$reason package=$packageName", error)
+                }
+            }
     }
 
     fun unhideAppInProfile(packageName: String): Boolean {
         return setAppHiddenInProfile(packageName, false)
     }
 
-    private fun unhideGooglePlayRuntimeDependencies() {
-        if (!isProfileOwner()) return
-        GOOGLE_CORE_SERVICE_PACKAGES.forEach { packageName ->
-            if (!isPackageInstalledInProfile(packageName)) {
-                enableAppInProfile(packageName)
+    private fun setAppHiddenInProfile(
+        packageName: String,
+        hidden: Boolean,
+        force: Boolean = false,
+        reason: String = "direct"
+    ): Boolean {
+        return try {
+            if (!isProfileOwner()) return false
+            if (packageName == context.packageName) {
+                Log.i(TAG, "Skip hiding own package to keep cross-profile entry available")
+                return false
             }
-            if (isPackageInstalledInProfile(packageName)) {
-                unhideAppInProfile(packageName)
-            } else {
-                Log.w(TAG, "Google Play dependency is not installed in profile: $packageName")
+            val alreadyHidden = runCatching {
+                devicePolicyManager.isApplicationHidden(getAdminComponent(), packageName)
+            }.getOrNull()
+            if (!force && alreadyHidden == hidden) {
+                Log.i(TAG, "Skip setting app hidden=$hidden because state is already current: $packageName")
+                return false
             }
+            if (force && alreadyHidden == hidden) {
+                devicePolicyManager.setApplicationHidden(getAdminComponent(), packageName, !hidden)
+            }
+            val changed = devicePolicyManager.setApplicationHidden(getAdminComponent(), packageName, hidden)
+            val appliedHidden = runCatching {
+                devicePolicyManager.isApplicationHidden(getAdminComponent(), packageName)
+            }.getOrNull()
+            val launcherActivityCount = runCatching {
+                launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).size
+            }.getOrNull()
+            Log.i(
+                TAG,
+                "Set app hidden=$hidden in profile: $packageName force=$force reason=$reason changed=$changed dpmHidden=$appliedHidden launcherActivities=$launcherActivityCount"
+            )
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting app hidden=$hidden: $packageName", e)
+            false
         }
     }
-
     fun isPackageInstalledInProfile(packageName: String): Boolean {
         return try {
             val appInfo = getProfileApplicationInfo(packageName) ?: return false
@@ -665,20 +807,9 @@ class WorkProfileManager @Inject constructor(
             packageManager.getApplicationInfo(packageName, flags)
         }
     }
-    private fun setAppHiddenInProfile(packageName: String, hidden: Boolean): Boolean {
-        return try {
-            if (!isProfileOwner()) return false
-            if (packageName == context.packageName) {
-                Log.i(TAG, "Skip hiding own package to keep cross-profile entry available")
-                return false
-            }
-            devicePolicyManager.setApplicationHidden(getAdminComponent(), packageName, hidden)
-            Log.i(TAG, "Set app hidden=$hidden in profile: $packageName")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting app hidden=$hidden: $packageName", e)
-            false
-        }
+
+    private fun isPackageKnownInProfile(packageName: String): Boolean {
+        return runCatching { getProfileApplicationInfo(packageName) != null }.getOrDefault(false)
     }
     fun getLaunchIntent(packageName: String): Intent? {
         return try {
@@ -707,9 +838,8 @@ class WorkProfileManager @Inject constructor(
             null
         }
     }
-
     fun isFileManagerPackage(packageName: String): Boolean {
-        return packageName in FILE_MANAGER_PACKAGES
+        return ProfileAppPolicyTable.isFileManagerPackage(packageName)
     }
 
     fun hasLauncherActivityInProfile(packageName: String): Boolean {
@@ -738,31 +868,49 @@ class WorkProfileManager @Inject constructor(
     }
 
     fun canLaunchPackageInProfile(packageName: String): Boolean {
+        val installVerification = if (isPackageInstalledInProfile(packageName)) {
+            InstallVerification.CONFIRMED_INSTALLED
+        } else {
+            InstallVerification.UNKNOWN
+        }
+        return resolveLaunchVerificationInProfile(packageName, installVerification).let { launchVerification ->
+            launchVerification == LaunchVerification.LAUNCHABLE ||
+                launchVerification == LaunchVerification.POLICY_LAUNCH_ONLY
+        }
+    }
+
+    fun resolveLaunchVerificationInProfile(
+        packageName: String,
+        installVerification: InstallVerification
+    ): LaunchVerification {
         return try {
-            isUserInstalledPackageInProfile(packageName) ||
-                isKnownProfileLaunchTool(packageName) ||
-                hasLauncherActivityInProfile(packageName)
+            val hasLauncherActivity = hasLauncherActivityInProfile(packageName)
+            when {
+                installVerification == InstallVerification.CONFIRMED_INSTALLED &&
+                    (isUserInstalledPackageInProfile(packageName) || hasLauncherActivity) -> LaunchVerification.LAUNCHABLE
+                isKnownProfileLaunchTool(packageName) -> LaunchVerification.POLICY_LAUNCH_ONLY
+                installVerification == InstallVerification.CONFIRMED_INSTALLED -> LaunchVerification.NOT_LAUNCHABLE
+                else -> LaunchVerification.UNKNOWN
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking launchable profile package: $packageName", e)
-            false
+            Log.e(TAG, "Error resolving launch verification for profile package: $packageName", e)
+            LaunchVerification.UNKNOWN
         }
     }
 
-    private fun isKnownProfileLaunchTool(packageName: String): Boolean {
-        return packageName == GOOGLE_PLAY_PACKAGE ||
-            packageName == "com.android.settings" ||
-            isFileManagerPackage(packageName) ||
-            packageName in SPECIAL_LAUNCH_COMPONENTS
+    fun isKnownProfileLaunchTool(packageName: String): Boolean {
+        return ProfileAppPolicyTable.resolve(packageName).knownLaunchTool
     }
+
     private fun startLaunchableApp(packageName: String): Boolean {
-        return when {
-            isFileManagerPackage(packageName) -> startFileManagerAtRecents(packageName)
-            packageName == "com.miui.securitycenter" -> startSpecialLaunchUri(packageName) || startSpecialLaunchComponent(packageName) || startLauncherActivity(packageName)
-            else -> startLauncherActivity(packageName)
+        return when (ProfileAppPolicyTable.resolve(packageName).launchMode) {
+            ProfileAppLaunchMode.FILE_MANAGER_RECENTS -> startFileManagerAtRecents(packageName)
+            ProfileAppLaunchMode.URI_THEN_COMPONENT -> startSpecialLaunchUri(packageName) || startSpecialLaunchComponent(packageName) || startLauncherActivity(packageName, allowPolicyFallback = false)
+            ProfileAppLaunchMode.COMPONENT_THEN_URI -> startSpecialLaunchComponent(packageName) || startSpecialLaunchUri(packageName) || startLauncherActivity(packageName, allowPolicyFallback = false)
+            ProfileAppLaunchMode.DEFAULT -> startLauncherActivity(packageName)
         }
     }
-
-    private fun startLauncherActivity(packageName: String): Boolean {
+    private fun startLauncherActivity(packageName: String, allowPolicyFallback: Boolean = true): Boolean {
         return try {
             val launcherInfo = getPrimaryLauncherActivityInfo(packageName)
             if (launcherInfo != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -774,7 +922,7 @@ class WorkProfileManager @Inject constructor(
                 )
                 Log.i(TAG, "Started app via LauncherApps: $packageName component=${launcherInfo.componentName}")
                 true
-            } else if (startSpecialLaunchComponent(packageName)) {
+            } else if (allowPolicyFallback && (startSpecialLaunchComponent(packageName) || startSpecialLaunchUri(packageName))) {
                 true
             } else {
                 val intent = packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -793,7 +941,7 @@ class WorkProfileManager @Inject constructor(
     }
 
     private fun startSpecialLaunchComponent(packageName: String): Boolean {
-        SPECIAL_LAUNCH_COMPONENTS[packageName].orEmpty().forEach { component ->
+        ProfileAppPolicyTable.resolve(packageName).launchComponents.forEach { component ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 try {
                     launcherApps.startMainActivity(
@@ -802,11 +950,24 @@ class WorkProfileManager @Inject constructor(
                         null,
                         null
                     )
-                    Log.i(TAG, "Started app via special LauncherApps component: $packageName component=$component")
+                    Log.i(TAG, "Started app via policy LauncherApps component: $packageName component=$component")
                     return true
                 } catch (e: Exception) {
-                    Log.w(TAG, "Special LauncherApps component failed: $packageName component=$component", e)
+                    Log.w(TAG, "Policy LauncherApps component failed: $packageName component=$component", e)
                 }
+            }
+
+            try {
+                context.startActivity(
+                    Intent().apply {
+                        setComponent(component)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                )
+                Log.i(TAG, "Started app via policy explicit component: $packageName component=$component")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Policy explicit component failed: $packageName component=$component", e)
             }
 
             try {
@@ -817,85 +978,28 @@ class WorkProfileManager @Inject constructor(
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 )
-                Log.i(TAG, "Started app via special launch component: $packageName component=$component")
+                Log.i(TAG, "Started app via policy launch component: $packageName component=$component")
                 return true
             } catch (e: Exception) {
-                Log.w(TAG, "Special launch component failed: $packageName component=$component", e)
+                Log.w(TAG, "Policy launch component failed: $packageName component=$component", e)
             }
         }
 
-        return startSpecialLaunchUri(packageName)
+        return false
     }
 
     private fun startSpecialLaunchUri(packageName: String): Boolean {
-        val intents = when (packageName) {
-            "com.xiaomi.market" -> listOf(
-                Intent(Intent.ACTION_VIEW, Uri.parse("mimarket://home")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    setPackage(packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent(Intent.ACTION_VIEW, Uri.parse("mimarket://home")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent(Intent.ACTION_VIEW, Uri.parse("mimarket://browse")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent(Intent.ACTION_VIEW, Uri.parse("market://launchordetail")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        ProfileAppPolicyTable.resolve(packageName).launchIntents
+            .map { it.toIntent(packageName) }
+            .forEach { intent ->
+                try {
+                    context.startActivity(intent)
+                    Log.i(TAG, "Started app via policy launch intent: $packageName action=${intent.action} uri=${intent.data}")
+                    return true
+                } catch (e: Exception) {
+                    Log.w(TAG, "Policy launch intent failed: $packageName action=${intent.action} uri=${intent.data}", e)
                 }
-            )
-            "com.miui.securitycenter" -> listOf(
-                Intent("miui.intent.action.APP_MANAGER").apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    setPackage(packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent("miui.intent.action.APP_MANAGER").apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent("miui.intent.action.APP_SETTINGS").apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    setPackage(packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent("miui.intent.action.SECURITY_CENTER_SETTINGS").apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    setPackage(packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent(Intent.ACTION_VIEW, Uri.parse("securitycenter://home/mainActivity")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    setPackage(packageName)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-                Intent(Intent.ACTION_VIEW, Uri.parse("securitycenter://home/mainActivity")).apply {
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addCategory(Intent.CATEGORY_BROWSABLE)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-            )
-            else -> emptyList()
-        }
-
-        intents.forEach { intent ->
-            try {
-                context.startActivity(intent)
-                Log.i(TAG, "Started app via special launch uri: $packageName uri=${intent.data}")
-                return true
-            } catch (e: Exception) {
-                Log.w(TAG, "Special launch uri failed: $packageName uri=${intent.data}", e)
             }
-        }
         return false
     }
 
@@ -951,7 +1055,7 @@ class WorkProfileManager @Inject constructor(
     }
 
     private fun shouldHideAfterForegroundChange(packageName: String, snapshot: ForegroundSnapshot): Boolean {
-        if (snapshot.packageName == packageName) return false
+        if (snapshot.packageName != null && snapshot.packageName in ProfileAppPolicyTable.resolve(packageName).foregroundPackageNames) return false
         if (snapshot.packageName == context.packageName) return true
         if (snapshot.packageName in getHomePackageNames()) return true
         if (snapshot.packageName == null && snapshot.targetMovedToBackground) return true
@@ -960,13 +1064,14 @@ class WorkProfileManager @Inject constructor(
     fun forceHideAppsInProfile(apps: List<AppInfo>, reason: String): Int {
         if (!isProfileOwner()) return 0
         var hiddenCount = 0
-        apps
-            .filter { it.packageName != context.packageName }
-            .distinctBy { it.packageName }
-            .forEach { app ->
-                if (setAppHiddenInProfile(app.packageName, true)) hiddenCount++
+        collectPackagesForResidualHide(apps)
+            .forEach { packageName ->
+                if (prepareResidualHideTarget(packageName, reason) && hideAppInProfileIfAllowed(packageName, reason)) {
+                    hiddenCount++
+                    schedulePostHideRetries(packageName, reason)
+                }
             }
-        Log.i(TAG, "Force hid profile apps reason=$reason count=$hiddenCount")
+        Log.i(TAG, "Policy-hid profile apps reason=$reason count=$hiddenCount")
         return hiddenCount
     }
 
@@ -976,18 +1081,21 @@ class WorkProfileManager @Inject constructor(
         val activeStartedAt = sharedPrefs.getLong(ACTIVE_LAUNCH_STARTED_AT, 0L)
         val activeLaunchValid = activePackage != null &&
             System.currentTimeMillis() - activeStartedAt <= FOREGROUND_MONITOR_TIMEOUT_MS
+        val activeLaunchSkipAllowed = activeLaunchValid && reason.substringBefore(":") != "homeLoadProfileApps"
         var hiddenCount = 0
-        apps
-            .filter { it.packageName != context.packageName }
-            .distinctBy { it.packageName }
-            .forEach { app ->
-                if (activeLaunchValid && app.packageName == activePackage) {
-                    Log.i(TAG, "Skip rehide active launched app reason=$reason package=${app.packageName}")
+        collectPackagesForResidualHide(apps)
+            .forEach { packageName ->
+                if (activeLaunchSkipAllowed && packageName == activePackage) {
+                    Log.i(TAG, "Skip rehide active launched app reason=$reason package=$packageName")
                     return@forEach
                 }
-                if (hideAppInProfileIfAllowed(app.packageName, reason)) hiddenCount++
+                if (prepareResidualHideTarget(packageName, reason) && hideAppInProfileIfAllowed(packageName, reason)) {
+                    hiddenCount++
+                    schedulePostHideRetries(packageName, reason)
+                }
             }
-        if (!activeLaunchValid && activePackage != null) {
+        if (activePackage != null && !activeLaunchSkipAllowed) {
+            Log.i(TAG, "Clear active launch session during rehide reason=$reason active=$activePackage valid=$activeLaunchValid")
             clearActiveLaunchSession()
         }
         Log.i(
@@ -997,8 +1105,57 @@ class WorkProfileManager @Inject constructor(
         return hiddenCount
     }
 
+    private fun collectPackagesForResidualHide(apps: List<AppInfo>): List<String> {
+        val cachedPackages = apps
+            .asSequence()
+            .filter { it.packageName != context.packageName && it.installVerification != InstallVerification.CONFIRMED_MISSING }
+            .map { it.packageName }
+        return (cachedPackages + ProfileAppPolicyTable.residualHideCandidatePackages().asSequence())
+            .distinct()
+            .toList()
+    }
+
+    private fun prepareResidualHideTarget(packageName: String, reason: String): Boolean {
+        return runCatching {
+            if (!isPackageInstalledInProfile(packageName) && ProfileAppPolicyTable.shouldAttemptResidualHide(packageName)) {
+                Log.i(TAG, "Skip installExistingPackage for residual hide candidate reason=$reason package=$packageName")
+            }
+            val installed = isPackageInstalledInProfile(packageName)
+            if (!installed) Log.i(TAG, "Skip residual hide for unavailable package reason=$reason package=$packageName")
+            installed
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to prepare residual hide target reason=$reason package=$packageName", error)
+        }.getOrDefault(false)
+    }
     fun isActiveLaunchSession(packageName: String): Boolean {
         return sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null) == packageName
+    }
+
+    fun shouldDeferPackageEventAutoHide(packageName: String): Boolean {
+        val activePackage = sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null) ?: return false
+        val activeStartedAt = sharedPrefs.getLong(ACTIVE_LAUNCH_STARTED_AT, 0L)
+        if (activeStartedAt <= 0L) return false
+
+        val policy = ProfileAppPolicyTable.resolve(activePackage)
+        val suppressMs = policy.launchPackageEventAutoHideSuppressMs
+        val elapsed = System.currentTimeMillis() - activeStartedAt
+        if (suppressMs <= 0L || elapsed > suppressMs) {
+            Log.i(
+                TAG,
+                "Package event auto-hide suppression expired active=$activePackage event=$packageName elapsed=$elapsed limit=$suppressMs"
+            )
+            return false
+        }
+
+        val deferredPackages = policy.postLaunchHidePackageNames + policy.preLaunchPackages + policy.foregroundPackageNames
+        val shouldDefer = packageName in deferredPackages
+        if (shouldDefer) {
+            Log.i(
+                TAG,
+                "Deferring package event auto-hide during active launch active=$activePackage event=$packageName elapsed=$elapsed limit=$suppressMs"
+            )
+        }
+        return shouldDefer
     }
 
     private fun markActiveLaunchSession(packageName: String) {
@@ -1006,6 +1163,7 @@ class WorkProfileManager @Inject constructor(
             .putString(ACTIVE_LAUNCH_PACKAGE, packageName)
             .putLong(ACTIVE_LAUNCH_STARTED_AT, System.currentTimeMillis())
             .apply()
+        Log.i(TAG, "Marked active launch session package=$packageName")
     }
 
     private fun clearActiveLaunchSession() {
@@ -1017,6 +1175,9 @@ class WorkProfileManager @Inject constructor(
 
     private fun startLaunchedAppForegroundMonitor(packageName: String) {
         val sessionStartedAt = System.currentTimeMillis()
+        val policy = ProfileAppPolicyTable.resolve(packageName)
+        val minForegroundMsBeforeHide = policy.minForegroundMsBeforeHide
+        val foregroundPackageNames = policy.foregroundPackageNames
         var observedTargetInForeground = false
         var targetForegroundFirstSeenAt = 0L
         var nonTargetForegroundFirstSeenAt = 0L
@@ -1033,15 +1194,20 @@ class WorkProfileManager @Inject constructor(
                 "Foreground monitor package=$packageName foreground=$foregroundPackage targetMovedToBackground=${foregroundSnapshot.targetMovedToBackground} observed=$observedTargetInForeground elapsed=$elapsed"
             )
 
-            if (foregroundPackage == packageName) {
+            if (foregroundPackage != null && foregroundPackage in foregroundPackageNames) {
                 observedTargetInForeground = true
                 if (targetForegroundFirstSeenAt == 0L) targetForegroundFirstSeenAt = now
                 nonTargetForegroundFirstSeenAt = 0L
-                foregroundMonitorHandler.postDelayed(::pollForeground, FOREGROUND_MONITOR_POLL_MS)
+                val nextPollMs = if (elapsed >= FOREGROUND_MONITOR_TIMEOUT_MS) {
+                    FOREGROUND_MONITOR_IDLE_POLL_MS
+                } else {
+                    FOREGROUND_MONITOR_POLL_MS
+                }
+                foregroundMonitorHandler.postDelayed(::pollForeground, nextPollMs)
                 return
             }
 
-            if (observedTargetInForeground && foregroundPackage != packageName) {
+            if (observedTargetInForeground && (foregroundPackage == null || foregroundPackage !in foregroundPackageNames)) {
                 if (nonTargetForegroundFirstSeenAt == 0L) nonTargetForegroundFirstSeenAt = now
                 val nonTargetElapsed = now - nonTargetForegroundFirstSeenAt
                 if (nonTargetElapsed < FOREGROUND_LEAVE_DEBOUNCE_MS) {
@@ -1050,10 +1216,10 @@ class WorkProfileManager @Inject constructor(
                 }
 
                 val targetForegroundElapsed = if (targetForegroundFirstSeenAt == 0L) 0L else now - targetForegroundFirstSeenAt
-                if (packageName == GOOGLE_PLAY_PACKAGE && targetForegroundElapsed < GOOGLE_PLAY_MIN_FOREGROUND_MS_BEFORE_HIDE) {
+                if (minForegroundMsBeforeHide > 0L && targetForegroundElapsed < minForegroundMsBeforeHide) {
                     Log.i(
                         TAG,
-                        "Delaying Google Play hide until startup is stable elapsed=$targetForegroundElapsed foreground=$foregroundPackage"
+                        "Delaying hide by policy until startup is stable package=$packageName elapsed=$targetForegroundElapsed min=$minForegroundMsBeforeHide foreground=$foregroundPackage"
                     )
                     foregroundMonitorHandler.postDelayed(::pollForeground, FOREGROUND_MONITOR_POLL_MS)
                     return
@@ -1069,13 +1235,17 @@ class WorkProfileManager @Inject constructor(
                 }
 
                 val hidden = hideAppInProfileIfAllowed(packageName, "foregroundChange")
-                if (hidden) clearActiveLaunchSession()
+                clearActiveLaunchSession()
+                if (hidden) {
+                    schedulePostHideRetries(packageName, "foregroundChange")
+                }
                 Log.i(TAG, "Hid launched profile app after safe foreground change package=$packageName foreground=$foregroundPackage hidden=$hidden")
                 return
             }
 
-            if (elapsed >= FOREGROUND_MONITOR_TIMEOUT_MS) {
-                Log.w(TAG, "Foreground monitor timed out before detecting target leave foreground: $packageName")
+            if (elapsed >= FOREGROUND_MONITOR_TIMEOUT_MS && !observedTargetInForeground) {
+                Log.w(TAG, "Foreground monitor timed out before detecting target foreground: $packageName")
+                clearActiveLaunchSession()
                 return
             }
 
@@ -1124,12 +1294,9 @@ class WorkProfileManager @Inject constructor(
         }
         return try {
             if (isProfileOwner()) {
-                if (packageName == GOOGLE_PLAY_PACKAGE) {
-                    unhideGooglePlayRuntimeDependencies()
-                }
-                if (packageName == "com.miui.securitycenter") {
-                    unhideNeverAutoHideDependencies()
-                }
+                val policy = ProfileAppPolicyTable.resolve(packageName)
+                markActiveLaunchSession(packageName)
+                preparePolicyPackagesForUse(policy.preLaunchPackages, "preLaunch:$packageName", packageName)
                 unhideAppInProfile(packageName)
             }
             if (startLaunchableApp(packageName)) {
@@ -1138,13 +1305,19 @@ class WorkProfileManager @Inject constructor(
                 Log.i(TAG, "Launched app in profile: $packageName")
                 true
             } else {
-                if (isProfileOwner()) hideAppInProfileIfAllowed(packageName, "launchFailed")
+                if (isProfileOwner()) {
+                    hideAppInProfileIfAllowed(packageName, "launchFailed")
+                    schedulePostHideRetries(packageName, "launchFailed")
+                }
                 clearActiveLaunchSession()
                 Log.w(TAG, "No launchable activity for package: $packageName")
                 false
             }
         } catch (e: Exception) {
-            if (isProfileOwner()) hideAppInProfileIfAllowed(packageName, "launchException")
+            if (isProfileOwner()) {
+                hideAppInProfileIfAllowed(packageName, "launchException")
+                schedulePostHideRetries(packageName, "launchException")
+            }
             clearActiveLaunchSession()
             Log.e(TAG, "Error launching app: $packageName", e)
             false
@@ -1171,50 +1344,3 @@ class WorkProfileManager @Inject constructor(
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -34,7 +34,21 @@
         android:id="@+id/appManagementFragment"
         android:name="com.system.launcher.tools.ui.home.AppManagementFragment"
         android:label="应用管理"
-        tools:layout="@layout/fragment_app_management" />
+        tools:layout="@layout/fragment_app_management">
+        <action
+            android:id="@+id/action_app_management_to_app_management_detail"
+            app:destination="@id/appManagementDetailFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/appManagementDetailFragment"
+        android:name="com.system.launcher.tools.ui.home.AppManagementDetailFragment"
+        android:label="应用详情"
+        tools:layout="@layout/fragment_app_management_detail">
+        <argument
+            android:name="packageName"
+            app:argType="string" />
+    </fragment>
 
     <fragment
         android:id="@+id/filesFragment"
