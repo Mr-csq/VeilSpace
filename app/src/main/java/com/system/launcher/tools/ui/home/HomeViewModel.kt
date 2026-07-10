@@ -9,10 +9,12 @@ import android.net.Uri
 import android.os.Build
 import android.provider.DocumentsContract
 import android.util.Log
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
@@ -194,6 +196,7 @@ class HomeViewModel @Inject constructor(
         val needsUpsert = existing == null ||
             existing.appName != INTERNAL_FILE_MANAGER_LABEL ||
             existing.entrySource != AppEntrySource.INTERNAL ||
+            existing.iconStatus != IconStatus.OK ||
             existing.installVerification != InstallVerification.CONFIRMED_INSTALLED ||
             existing.launchVerification != LaunchVerification.LAUNCHABLE
         if (!needsUpsert) return
@@ -203,12 +206,13 @@ class HomeViewModel @Inject constructor(
             AppInfo(
                 packageName = getInternalFileManagerPackageName(),
                 appName = INTERNAL_FILE_MANAGER_LABEL,
-                icon = null,
+                icon = ContextCompat.getDrawable(context, R.drawable.ic_internal_file_manager),
                 isSystemApp = true,
                 showOnHome = true,
                 entrySource = AppEntrySource.INTERNAL,
                 installVerification = InstallVerification.CONFIRMED_INSTALLED,
                 launchVerification = LaunchVerification.LAUNCHABLE,
+                iconStatus = IconStatus.OK,
                 diagnosticReason = ""
             )
         )
@@ -248,6 +252,17 @@ class HomeViewModel @Inject constructor(
             withContext(Dispatchers.IO) { ProfileAppStore.setShowOnHome(context, app.packageName, false) }
             loadProfileApps()
             onComplete()
+        }
+    }
+
+    fun reorderHomeApps(packageNames: List<String>) {
+        if (packageNames.isEmpty()) return
+        viewModelScope.launch {
+            val reorderedApps = withContext(Dispatchers.IO) {
+                ProfileAppStore.reorderHomeApps(context, packageNames)
+                ProfileAppStore.loadHomeApps(context)
+            }
+            submitHomeAppsIfChanged(reorderedApps, forceSubmit = true)
         }
     }
 

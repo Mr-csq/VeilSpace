@@ -57,6 +57,7 @@ object ProfileAppStore {
                     installVerification = app.installVerification,
                     launchVerification = app.launchVerification,
                     iconStatus = iconStatus,
+                    launcherComponentNames = app.launcherComponentNames.ifEmpty { previous?.launcherComponentNames.orEmpty() },
                     lastSeenAt = app.lastSeenAt,
                     diagnosticReason = app.diagnosticReason
                 )
@@ -232,6 +233,7 @@ object ProfileAppStore {
             installVerification = mergeInstallVerification(existing.installVerification, incoming.installVerification),
             launchVerification = mergeLaunchVerification(existing.launchVerification, incoming.launchVerification),
             iconStatus = if (incoming.icon != null) IconStatus.OK else existing.iconStatus,
+            launcherComponentNames = incoming.launcherComponentNames.ifEmpty { existing.launcherComponentNames },
             lastSeenAt = incoming.lastSeenAt,
             diagnosticReason = incoming.diagnosticReason.ifBlank { existing.diagnosticReason }
         )
@@ -294,6 +296,7 @@ object ProfileAppStore {
                         installVerification = InstallVerification.CONFIRMED_INSTALLED,
                         launchVerification = LaunchVerification.LAUNCHABLE,
                         iconStatus = IconStatus.OK,
+                        launcherComponentNames = emptySet(),
                         lastSeenAt = System.currentTimeMillis(),
                         diagnosticReason = ""
                     )
@@ -390,6 +393,7 @@ object ProfileAppStore {
         val installVerification: InstallVerification,
         val launchVerification: LaunchVerification,
         val iconStatus: IconStatus,
+        val launcherComponentNames: Set<String>,
         val lastSeenAt: Long,
         val diagnosticReason: String
     ) {
@@ -408,6 +412,7 @@ object ProfileAppStore {
                 put("installed", installVerification == InstallVerification.CONFIRMED_INSTALLED)
                 put("launchable", launchVerification == LaunchVerification.LAUNCHABLE || launchVerification == LaunchVerification.POLICY_LAUNCH_ONLY)
                 put("iconStatus", iconStatus.name)
+                put("launcherComponentNames", JSONArray().apply { launcherComponentNames.forEach(::put) })
                 put("lastSeenAt", lastSeenAt)
                 put("diagnosticReason", diagnosticReason)
             }
@@ -432,6 +437,7 @@ object ProfileAppStore {
                 installVerification = installVerification,
                 launchVerification = launchVerification,
                 iconStatus = resolvedIconStatus,
+                launcherComponentNames = launcherComponentNames,
                 lastSeenAt = lastSeenAt,
                 diagnosticReason = diagnosticReason
             )
@@ -456,6 +462,7 @@ object ProfileAppStore {
                     installVerification = installVerification,
                     launchVerification = parseLaunchVerification(item, installVerification),
                     iconStatus = parseEnum(item.optString("iconStatus"), IconStatus.OK),
+                    launcherComponentNames = parseStringSet(item.optJSONArray("launcherComponentNames")),
                     lastSeenAt = item.optLong("lastSeenAt", System.currentTimeMillis()),
                     diagnosticReason = diagnosticReason
                 )
@@ -471,6 +478,13 @@ object ProfileAppStore {
                 } else {
                     InstallVerification.UNKNOWN
                 }
+            }
+
+            private fun parseStringSet(array: JSONArray?): Set<String> {
+                if (array == null) return emptySet()
+                return (0 until array.length())
+                    .mapNotNull { index -> array.optString(index).takeIf { it.isNotBlank() } }
+                    .toSet()
             }
 
             private fun parseLaunchVerification(item: JSONObject, installVerification: InstallVerification): LaunchVerification {

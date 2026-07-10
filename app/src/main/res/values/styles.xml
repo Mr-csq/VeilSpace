@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Widget.PrivacySpace" parent="android:style/Widget" />
+    <style name="ShapeAppearance.PrivacySpace" parent="ShapeAppearance.Material3.Corner.None" />
+
+    <style name="Widget.PrivacySpace.IconButton">
+        <item name="android:layout_width">44dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:background">@drawable/bg_icon_button</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:tint">@color/ui_text_secondary</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.IconButton.Primary" parent="Widget.PrivacySpace.IconButton">
+        <item name="android:background">@drawable/bg_icon_button_primary</item>
+        <item name="android:tint">@color/ui_text_primary</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.IconButton.OnDark" parent="Widget.PrivacySpace.IconButton">
+        <item name="android:background">@drawable/bg_icon_button_on_dark</item>
+        <item name="android:tint">@color/white</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.PrimaryButton" parent="Widget.Material3.Button">
+        <item name="android:minHeight">52dp</item>
+        <item name="cornerRadius">26dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="backgroundTint">@color/ui_primary</item>
+        <item name="android:textColor">@color/ui_text_primary</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.TextButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:textColor">@color/ui_on_secondary_container</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.TonalButton" parent="Widget.Material3.Button.TonalButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textSize">15sp</item>
+        <item name="backgroundTint">@color/ui_primary_container</item>
+        <item name="android:textColor">@color/ui_on_primary_container</item>
+    </style>
+
+    <style name="Widget.PrivacySpace.DangerTextButton" parent="Widget.Material3.Button.TextButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:textColor">@color/ui_error</item>
+    </style>
+
+    <style name="TextAppearance.PrivacySpace.PageTitle" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:textColor">@color/ui_text_primary</item>
+        <item name="android:textSize">28sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextAppearance.PrivacySpace.SectionTitle" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textColor">@color/ui_text_primary</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="ShapeAppearance.PrivacySpace.Dialog">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">24dp</item>
+    </style>
+
+    <style name="ThemeOverlay.PrivacySpace.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.PrivacySpace.Dialog</item>
+        <item name="colorSurface">@color/ui_surface</item>
+        <item name="colorOnSurface">@color/ui_text_primary</item>
+        <item name="colorPrimary">@color/ui_primary</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.PrivacySpace.TextButton</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Widget.PrivacySpace.TextButton</item>
+    </style>
+</resources>

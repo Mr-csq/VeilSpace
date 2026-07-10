@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
@@ -12,14 +13,12 @@
 
     <ImageButton
         android:id="@+id/btn_close"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
+        style="@style/Widget.PrivacySpace.IconButton.OnDark"
         android:layout_gravity="top|start"
-        android:layout_margin="12dp"
-        android:background="#66000000"
+        android:layout_margin="16dp"
         android:contentDescription="关闭"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:tint="@android:color/white" />
+        android:src="@drawable/ic_close_24"
+        app:tint="@android:color/white" />
 
     <TextView
         android:id="@+id/tv_counter"
@@ -27,11 +26,11 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="24dp"
-        android:background="#66000000"
+        android:background="@drawable/bg_preview_counter"
         android:paddingStart="12dp"
-        android:paddingTop="6dp"
+        android:paddingTop="7dp"
         android:paddingEnd="12dp"
-        android:paddingBottom="6dp"
+        android:paddingBottom="7dp"
         android:textColor="@android:color/white"
         android:textSize="14sp" />
 </FrameLayout>

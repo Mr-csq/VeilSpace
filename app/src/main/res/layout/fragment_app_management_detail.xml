@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:colorBackground"
+    android:background="@color/ui_background"
     android:orientation="vertical"
     tools:context=".ui.home.AppManagementDetailFragment">
 
@@ -12,34 +13,32 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="10dp">
+        android:paddingStart="12dp"
+        android:paddingTop="18dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp">
 
         <ImageButton
             android:id="@+id/btn_back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            style="@style/Widget.PrivacySpace.IconButton"
+            android:layout_marginEnd="8dp"
             android:contentDescription="返回"
-            android:src="@android:drawable/ic_media_previous" />
+            android:src="@drawable/ic_arrow_back_24"
+            app:tint="@color/ui_text_secondary" />
 
         <TextView
+            style="@style/TextAppearance.PrivacySpace.PageTitle"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="应用详情"
-            android:textColor="?android:textColorPrimary"
-            android:textSize="22sp"
-            android:textStyle="bold" />
+            android:text="应用详情" />
 
         <ImageButton
             android:id="@+id/btn_refresh_status"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            style="@style/Widget.PrivacySpace.IconButton"
             android:contentDescription="刷新状态"
-            android:src="@android:drawable/ic_popup_sync" />
+            android:src="@drawable/ic_refresh_24"
+            app:tint="@color/ui_text_secondary" />
     </LinearLayout>
 
     <ScrollView
@@ -59,9 +58,10 @@
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@drawable/bg_ui_card"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingBottom="18dp">
+                android:padding="16dp">
 
                 <ImageView
                     android:id="@+id/iv_app_icon"
@@ -83,7 +83,7 @@
                         android:layout_height="wrap_content"
                         android:ellipsize="end"
                         android:maxLines="2"
-                        android:textColor="?android:textColorPrimary"
+                        android:textColor="@color/ui_text_primary"
                         android:textSize="20sp"
                         android:textStyle="bold"
                         tools:text="应用名称" />
@@ -92,10 +92,10 @@
                         android:id="@+id/tv_package_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="3dp"
+                        android:layout_marginTop="4dp"
                         android:ellipsize="end"
                         android:maxLines="2"
-                        android:textColor="?android:textColorSecondary"
+                        android:textColor="@color/ui_text_secondary"
                         android:textSize="12sp"
                         tools:text="com.example.app" />
 
@@ -103,28 +103,27 @@
                         android:id="@+id/tv_status_summary"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:textColor="?android:textColorSecondary"
+                        android:layout_marginTop="8dp"
+                        android:textColor="@color/ui_primary"
                         android:textSize="13sp"
                         tools:text="首页显示 · 已安装 · 可启动" />
                 </LinearLayout>
             </LinearLayout>
 
             <TextView
+                style="@style/TextAppearance.PrivacySpace.SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:paddingTop="4dp"
-                android:text="显示"
-                android:textColor="?android:textColorPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="22dp"
+                android:text="显示" />
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/switch_show"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="在首页显示" />
+                android:text="在首页显示"
+                android:textColor="@color/ui_text_primary" />
 
             <TextView
                 android:id="@+id/tv_show_hint"
@@ -132,92 +131,96 @@
                 android:layout_height="wrap_content"
                 android:paddingBottom="18dp"
                 android:text="关闭后应用仍保留在隐藏空间，只是不出现在首页。"
-                android:textColor="?android:textColorSecondary"
+                android:textColor="@color/ui_text_secondary"
                 android:textSize="12sp" />
 
             <TextView
+                style="@style/TextAppearance.PrivacySpace.SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="运行策略"
-                android:textColor="?android:textColorPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:text="运行策略" />
 
             <com.google.android.material.materialswitch.MaterialSwitch
                 android:id="@+id/switch_keep_alive"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="允许后台运行" />
+                android:text="允许后台运行"
+                android:textColor="@color/ui_text_primary" />
 
             <TextView
                 android:id="@+id/tv_keep_alive_hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingBottom="18dp"
-                android:textColor="?android:textColorSecondary"
+                android:textColor="@color/ui_text_secondary"
                 android:textSize="12sp"
                 tools:text="关闭后离开前台会自动隐藏，减少桌面残留。" />
 
             <TextView
+                style="@style/TextAppearance.PrivacySpace.SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="状态"
-                android:textColor="?android:textColorPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:text="状态" />
 
             <TextView
                 android:id="@+id/tv_status_detail"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:lineSpacingExtra="3dp"
-                android:textColor="?android:textColorSecondary"
+                android:background="@drawable/bg_ui_card"
+                android:lineSpacingExtra="4dp"
+                android:padding="14dp"
+                android:textColor="@color/ui_text_secondary"
                 android:textSize="13sp"
-                tools:text="入口来源：当前发现\n安装验证：确认已安装\n启动验证：可启动\n图标状态：OK" />
+                tools:text="入口来源：当前发现
+安装验证：确认已安装
+启动验证：可启动
+图标状态：OK" />
 
             <TextView
                 android:id="@+id/tv_diagnostic_reason"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:paddingBottom="18dp"
-                android:textColor="?attr/colorError"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/bg_error_notice"
+                android:padding="12dp"
+                android:textColor="@color/ui_error"
                 android:textSize="13sp"
                 tools:text="应用图标需要修复" />
 
             <TextView
+                style="@style/TextAppearance.PrivacySpace.SectionTitle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="操作"
-                android:textColor="?android:textColorPrimary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="22dp"
+                android:text="操作" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_refresh_icon"
-                style="?attr/borderlessButtonStyle"
+                style="@style/Widget.PrivacySpace.TonalButton"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:layout_marginTop="6dp"
-                android:gravity="center_vertical"
-                android:text="刷新应用图标" />
+                android:layout_marginTop="8dp"
+                android:text="刷新应用图标"
+                app:icon="@drawable/ic_refresh_24"
+                app:iconGravity="textStart"
+                app:iconTint="@color/ui_on_primary_container" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_uninstall_app"
-                style="?attr/borderlessButtonStyle"
+                style="@style/Widget.PrivacySpace.DangerTextButton"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:gravity="center_vertical"
+                android:layout_marginTop="4dp"
                 android:text="从隐藏空间卸载" />
 
-            <Button
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_remove_record"
-                style="?attr/borderlessButtonStyle"
+                style="@style/Widget.PrivacySpace.TextButton"
                 android:layout_width="match_parent"
                 android:layout_height="48dp"
-                android:gravity="center_vertical"
+                android:layout_marginTop="4dp"
                 android:text="移除记录" />
         </LinearLayout>
     </ScrollView>

@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@drawable/bg_file_page"
+    android:background="@color/ui_background"
     tools:context=".ui.files.FilesFragment">
 
     <LinearLayout
@@ -15,14 +15,14 @@
         <LinearLayout
             android:id="@+id/normal_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="88dp"
-            android:background="@drawable/bg_file_toolbar"
+            android:layout_height="96dp"
+            android:background="@color/ui_background"
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:paddingStart="20dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="8dp">
+            android:paddingTop="18dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -31,83 +31,81 @@
                 android:orientation="vertical">
 
                 <TextView
+                    style="@style/TextAppearance.PrivacySpace.PageTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/files_title"
-                    android:textColor="#111827"
-                    android:textSize="28sp"
-                    android:textStyle="bold" />
+                    android:text="@string/files_title" />
 
                 <TextView
                     android:id="@+id/tv_file_summary"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textColor="#7A8599"
-                    android:textSize="13sp"
+                    android:textColor="@color/ui_text_secondary"
+                    android:textSize="14sp"
                     tools:text="12 个项目 · 328 MB" />
             </LinearLayout>
 
             <ImageButton
                 android:id="@+id/btn_refresh"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="刷新"
-                android:src="@android:drawable/ic_popup_sync" />
+                android:src="@drawable/ic_refresh_24"
+                app:tint="@color/ui_text_secondary" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/selection_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="72dp"
-            android:background="@drawable/bg_file_toolbar"
+            android:layout_height="80dp"
+            android:background="@color/ui_background"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
+            android:paddingStart="12dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="10dp"
             android:visibility="gone"
             tools:visibility="visible">
 
             <ImageButton
                 android:id="@+id/btn_cancel_selection"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="取消选择"
-                android:src="@drawable/ic_close_24" />
+                android:src="@drawable/ic_close_24"
+                app:tint="@color/ui_text_secondary" />
 
             <TextView
                 android:id="@+id/tv_selection_count"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:textColor="#111827"
-                android:textSize="18sp"
+                android:textColor="@color/ui_text_primary"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 tools:text="已选择 3 项" />
 
             <ImageButton
                 android:id="@+id/btn_select_all"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                style="@style/Widget.PrivacySpace.IconButton"
+                android:layout_marginEnd="8dp"
                 android:contentDescription="全选"
-                android:src="@drawable/ic_select_all_24" />
+                android:src="@drawable/ic_select_all_24"
+                app:tint="@color/ui_text_secondary" />
 
             <ImageButton
                 android:id="@+id/btn_delete_selected"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="删除"
-                android:src="@drawable/ic_delete_24" />
+                android:src="@drawable/ic_delete_24"
+                app:tint="@color/ui_error" />
         </LinearLayout>
 
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tab_layout"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
+            android:layout_height="46dp"
             android:layout_marginStart="16dp"
             android:layout_marginEnd="16dp"
             android:background="@drawable/bg_file_chip"
@@ -115,8 +113,8 @@
             app:tabIndicatorHeight="0dp"
             app:tabMode="fixed"
             app:tabRippleColor="@android:color/transparent"
-            app:tabSelectedTextColor="@android:color/white"
-            app:tabTextColor="#5F6B7A" />
+            app:tabSelectedTextColor="@color/white"
+            app:tabTextColor="@color/ui_text_secondary" />
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -149,8 +147,9 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="暂无文件"
-                    android:textColor="#7A8599"
-                    android:textSize="17sp" />
+                    android:textColor="@color/ui_text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tv_empty_subtitle"
@@ -159,7 +158,7 @@
                     android:layout_marginTop="8dp"
                     android:gravity="center"
                     android:text=""
-                    android:textColor="#A2AAB7"
+                    android:textColor="@color/ui_text_secondary"
                     android:textSize="13sp" />
             </LinearLayout>
 

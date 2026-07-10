@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
     <style name="Base.Theme.PrivacySpace" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
         <item name="colorPrimary">@color/md_theme_light_primary</item>
         <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
         <item name="colorPrimaryContainer">@color/md_theme_light_primaryContainer</item>
@@ -11,12 +9,21 @@
         <item name="colorOnSecondary">@color/md_theme_light_onSecondary</item>
         <item name="colorSecondaryContainer">@color/md_theme_light_secondaryContainer</item>
         <item name="colorOnSecondaryContainer">@color/md_theme_light_onSecondaryContainer</item>
+        <item name="colorSurface">@color/ui_surface</item>
+        <item name="colorSurfaceVariant">@color/ui_surface_variant</item>
+        <item name="colorOutline">@color/ui_outline</item>
+        <item name="colorError">@color/ui_error</item>
+        <item name="android:colorBackground">@color/ui_background</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/ui_background</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.PrivacySpace.MaterialAlertDialog</item>
     </style>
 
     <style name="Theme.PrivacySpace" parent="Base.Theme.PrivacySpace" />
 
-    <!-- 透明主题，用于 DisguiseActivity -->
     <style name="Theme.Transparent" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
@@ -36,7 +43,5 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsTranslucent">false</item>
         <item name="android:backgroundDimEnabled">false</item>
-    </style></resources>
-
-
-
+    </style>
+</resources>

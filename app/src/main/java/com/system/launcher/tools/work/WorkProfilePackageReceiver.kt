@@ -83,6 +83,7 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
                 return false
             }
             val launchVerification = manager.resolveLaunchVerificationInProfile(packageName, InstallVerification.CONFIRMED_INSTALLED)
+            val launcherComponentNames = manager.getLauncherComponentNamesInProfile(packageName)
             val app = AppInfo(
                 packageName = packageName,
                 appName = pm.getApplicationLabel(appInfo).toString(),
@@ -92,6 +93,7 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
                 entrySource = AppEntrySource.DISCOVERED_INSTALLED,
                 installVerification = InstallVerification.CONFIRMED_INSTALLED,
                 launchVerification = launchVerification,
+                launcherComponentNames = launcherComponentNames,
                 diagnosticReason = if (launchVerification == LaunchVerification.NOT_LAUNCHABLE) {
                     "未找到可启动入口，可能是系统组件或启动入口被系统限制"
                 } else {

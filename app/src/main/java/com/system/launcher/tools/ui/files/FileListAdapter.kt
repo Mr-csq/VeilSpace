@@ -8,24 +8,43 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import coil.load
 import com.system.launcher.tools.R
+import com.system.launcher.tools.databinding.ItemFileDateHeaderBinding
 import com.system.launcher.tools.databinding.ItemFileRowBinding
 import java.io.File
 
 class FileListAdapter(
     private val onClick: (FileItem) -> Unit,
-    private val onLongClick: (FileItem) -> Boolean
-) : ListAdapter<FileItem, FileListAdapter.ViewHolder>(DiffCallback()) {
+    private val onLongClick: (FileItem) -> Boolean,
+    private val onDateSelectAll: (String) -> Unit
+) : ListAdapter<FileSectionItem, RecyclerView.ViewHolder>(DiffCallback()) {
 
     private val selectedPaths = linkedSetOf<String>()
     private var selectionMode = false
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val binding = ItemFileRowBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return ViewHolder(binding)
+    override fun getItemViewType(position: Int): Int {
+        return when (getItem(position)) {
+            is FileSectionItem.DateHeader -> VIEW_TYPE_DATE_HEADER
+            is FileSectionItem.FileRow -> VIEW_TYPE_FILE
+        }
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(getItem(position))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            VIEW_TYPE_DATE_HEADER -> DateHeaderViewHolder(ItemFileDateHeaderBinding.inflate(inflater, parent, false))
+            else -> FileViewHolder(ItemFileRowBinding.inflate(inflater, parent, false))
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = getItem(position)) {
+            is FileSectionItem.DateHeader -> (holder as DateHeaderViewHolder).bind(item)
+            is FileSectionItem.FileRow -> (holder as FileViewHolder).bind(item.item)
+        }
+    }
+
+    fun submitFiles(files: List<FileItem>) {
+        submitList(FileSectionItem.fromFiles(files))
     }
 
     fun setSelectionState(paths: Set<String>, enabled: Boolean) {
@@ -35,7 +54,17 @@ class FileListAdapter(
         notifyDataSetChanged()
     }
 
-    inner class ViewHolder(private val binding: ItemFileRowBinding) : RecyclerView.ViewHolder(binding.root) {
+    inner class DateHeaderViewHolder(
+        private val binding: ItemFileDateHeaderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(item: FileSectionItem.DateHeader) {
+            binding.tvDateHeader.text = item.label
+            binding.btnSelectDate.visibility = if (selectionMode) View.VISIBLE else View.GONE
+            binding.btnSelectDate.setOnClickListener { onDateSelectAll(item.key) }
+        }
+    }
+
+    inner class FileViewHolder(private val binding: ItemFileRowBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: FileItem) {
             val selected = selectedPaths.contains(item.path)
             binding.tvFileName.text = item.name
@@ -88,8 +117,20 @@ class FileListAdapter(
         }
     }
 
-    private class DiffCallback : DiffUtil.ItemCallback<FileItem>() {
-        override fun areItemsTheSame(oldItem: FileItem, newItem: FileItem): Boolean = oldItem.path == newItem.path
-        override fun areContentsTheSame(oldItem: FileItem, newItem: FileItem): Boolean = oldItem == newItem
+    private class DiffCallback : DiffUtil.ItemCallback<FileSectionItem>() {
+        override fun areItemsTheSame(oldItem: FileSectionItem, newItem: FileSectionItem): Boolean {
+            return when {
+                oldItem is FileSectionItem.DateHeader && newItem is FileSectionItem.DateHeader -> oldItem.key == newItem.key
+                oldItem is FileSectionItem.FileRow && newItem is FileSectionItem.FileRow -> oldItem.item.path == newItem.item.path
+                else -> false
+            }
+        }
+
+        override fun areContentsTheSame(oldItem: FileSectionItem, newItem: FileSectionItem): Boolean = oldItem == newItem
+    }
+
+    private companion object {
+        const val VIEW_TYPE_DATE_HEADER = 0
+        const val VIEW_TYPE_FILE = 1
     }
 }

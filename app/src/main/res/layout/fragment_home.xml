@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:colorBackground"
+    android:background="@color/ui_background"
     android:orientation="vertical"
     tools:context=".ui.home.HomeFragment">
 
@@ -12,8 +13,9 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="20dp"
+        android:paddingStart="20dp"
         android:paddingTop="18dp"
+        android:paddingEnd="16dp"
         android:paddingBottom="12dp">
 
         <LinearLayout
@@ -23,38 +25,35 @@
             android:orientation="vertical">
 
             <TextView
+                style="@style/TextAppearance.PrivacySpace.PageTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="隐藏空间"
-                android:textColor="?android:textColorPrimary"
-                android:textSize="22sp"
-                android:textStyle="bold" />
+                android:text="隐藏空间" />
 
             <TextView
                 android:id="@+id/tv_home_subtitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="4dp"
                 android:text="仅显示你设定在首页的应用"
-                android:textColor="?android:textColorSecondary"
-                android:textSize="13sp" />
+                android:textColor="@color/ui_text_secondary"
+                android:textSize="14sp" />
         </LinearLayout>
 
         <ImageButton
             android:id="@+id/btn_settings"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            style="@style/Widget.PrivacySpace.IconButton"
+            android:layout_marginEnd="8dp"
             android:contentDescription="设置"
-            android:src="@android:drawable/ic_menu_manage" />
+            android:src="@drawable/ic_settings_24"
+            app:tint="@color/ui_text_secondary" />
 
         <ImageButton
             android:id="@+id/btn_add_app"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            style="@style/Widget.PrivacySpace.IconButton.Primary"
             android:contentDescription="添加应用"
-            android:src="@android:drawable/ic_input_add" />
+            android:src="@drawable/ic_add_24"
+            app:tint="@color/ui_text_primary" />
     </LinearLayout>
 
     <FrameLayout
@@ -69,7 +68,7 @@
             android:clipToPadding="false"
             android:paddingHorizontal="12dp"
             android:paddingTop="4dp"
-            android:paddingBottom="20dp" />
+            android:paddingBottom="24dp" />
 
         <LinearLayout
             android:id="@+id/empty_view"
@@ -86,7 +85,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="暂无首页应用"
-                android:textColor="?android:textColorPrimary"
+                android:textColor="@color/ui_text_primary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -96,7 +95,7 @@
                 android:layout_marginTop="8dp"
                 android:gravity="center"
                 android:text="通过添加 APK 或应用管理选择要显示的应用"
-                android:textColor="?android:textColorSecondary"
+                android:textColor="@color/ui_text_secondary"
                 android:textSize="14sp" />
         </LinearLayout>
     </FrameLayout>

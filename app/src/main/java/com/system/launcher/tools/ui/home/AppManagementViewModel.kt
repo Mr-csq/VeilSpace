@@ -2,10 +2,12 @@ package com.system.launcher.tools.ui.home
 
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
@@ -105,14 +107,6 @@ class AppManagementViewModel @Inject constructor(
                 }
                 ProfileAppStore.loadApps(context)
             }
-            _apps.value = result
-        }
-    }
-
-    fun reorderHomeApps(packageNames: List<String>) {
-        if (packageNames.isEmpty()) return
-        viewModelScope.launch {
-            val result = withContext(Dispatchers.IO) { ProfileAppStore.reorderHomeApps(context, packageNames) }
             _apps.value = result
         }
     }
@@ -254,12 +248,13 @@ class AppManagementViewModel @Inject constructor(
             AppInfo(
                 packageName = getInternalFileManagerPackageName(),
                 appName = INTERNAL_FILE_MANAGER_LABEL,
-                icon = null,
+                icon = ContextCompat.getDrawable(context, R.drawable.ic_internal_file_manager),
                 isSystemApp = true,
                 showOnHome = true,
                 entrySource = AppEntrySource.INTERNAL,
                 installVerification = InstallVerification.CONFIRMED_INSTALLED,
-                launchVerification = LaunchVerification.LAUNCHABLE
+                launchVerification = LaunchVerification.LAUNCHABLE,
+                iconStatus = IconStatus.OK
             )
         )
     }

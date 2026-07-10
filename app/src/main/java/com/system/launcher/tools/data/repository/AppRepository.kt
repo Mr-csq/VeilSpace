@@ -1,5 +1,6 @@
 package com.system.launcher.tools.data.repository
 
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -90,7 +91,8 @@ class AppRepository @Inject constructor(
                         isSystemApp = appInfo.isSystemApplication(),
                         entrySource = AppEntrySource.DISCOVERED_INSTALLED,
                         installVerification = InstallVerification.CONFIRMED_INSTALLED,
-                        launchVerification = LaunchVerification.LAUNCHABLE
+                        launchVerification = LaunchVerification.LAUNCHABLE,
+                        launcherComponentNames = setOf(launcherInfo.componentName.flattenToString())
                     )
                 }
                 .sortedBy { it.appName }
@@ -129,6 +131,9 @@ class AppRepository @Inject constructor(
                 }
                 .forEach { appInfo ->
                     val launcherInfo = resolveLauncherActivity(appInfo.packageName, includeHiddenFlags)
+                    val launcherComponentNames = launcherInfo?.activityInfo?.let { activityInfo ->
+                        setOf(ComponentName(activityInfo.packageName, activityInfo.name).flattenToString())
+                    }.orEmpty()
                     appsByPackage[appInfo.packageName] = AppInfo(
                         packageName = appInfo.packageName,
                         appName = launcherInfo?.loadLabel(packageManager)?.toString()
@@ -138,7 +143,8 @@ class AppRepository @Inject constructor(
                         isSystemApp = appInfo.isSystemApplication(),
                         entrySource = AppEntrySource.DISCOVERED_INSTALLED,
                         installVerification = InstallVerification.CONFIRMED_INSTALLED,
-                        launchVerification = LaunchVerification.LAUNCHABLE
+                        launchVerification = LaunchVerification.LAUNCHABLE,
+                        launcherComponentNames = launcherComponentNames
                     )
                 }
         } catch (e: Exception) {
@@ -164,6 +170,9 @@ class AppRepository @Inject constructor(
                 installed -> LaunchVerification.UNKNOWN
                 else -> LaunchVerification.UNKNOWN
             }
+            val launcherComponentNames = launcherInfo?.activityInfo?.let { activityInfo ->
+                setOf(ComponentName(activityInfo.packageName, activityInfo.name).flattenToString())
+            }.orEmpty()
             AppInfo(
                 packageName = packageName,
                 appName = policy.displayName
@@ -177,6 +186,7 @@ class AppRepository @Inject constructor(
                 entrySource = AppEntrySource.SYSTEM_CANDIDATE,
                 installVerification = if (installed) InstallVerification.CONFIRMED_INSTALLED else InstallVerification.UNKNOWN,
                 launchVerification = launchVerification,
+                launcherComponentNames = launcherComponentNames,
                 diagnosticReason = if (installed) "" else "系统候选入口，当前无法确认是否已安装在隐藏空间中"
             )
         }.sortedBy { it.appName }

@@ -16,7 +16,7 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
@@ -124,11 +124,13 @@ class FilesFragment : Fragment() {
     private fun setupRecyclerView() {
         imageAdapter = ImageGridAdapter(
             onClick = { item -> handleItemClick(item) },
-            onLongClick = { item -> enterSelectionWith(item); true }
+            onLongClick = { item -> enterSelectionWith(item); true },
+            onDateSelectAll = { dateKey -> selectDateGroup(dateKey) }
         )
         fileAdapter = FileListAdapter(
             onClick = { item -> handleItemClick(item) },
-            onLongClick = { item -> enterSelectionWith(item); true }
+            onLongClick = { item -> enterSelectionWith(item); true },
+            onDateSelectAll = { dateKey -> selectDateGroup(dateKey) }
         )
     }
 
@@ -166,18 +168,24 @@ class FilesFragment : Fragment() {
         val items = currentItems(state)
         binding.tvFileSummary.text = buildSummary(state)
 
-        if (selectedTab == FileTab.IMAGES) {
+        if (selectedTab != FileTab.ALL) {
             if (binding.rvFiles.adapter !== imageAdapter) {
-                binding.rvFiles.layoutManager = GridLayoutManager(requireContext(), 3)
+                binding.rvFiles.layoutManager = GridLayoutManager(requireContext(), 3).apply {
+                    spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                        override fun getSpanSize(position: Int): Int {
+                            return if (imageAdapter.isDateHeader(position)) 3 else 1
+                        }
+                    }
+                }
                 binding.rvFiles.adapter = imageAdapter
             }
-            imageAdapter.submitList(items)
+            imageAdapter.submitFiles(items)
         } else {
             if (binding.rvFiles.adapter !== fileAdapter) {
                 binding.rvFiles.layoutManager = LinearLayoutManager(requireContext())
                 binding.rvFiles.adapter = fileAdapter
             }
-            fileAdapter.submitList(items)
+            fileAdapter.submitFiles(items)
         }
 
         val showEmpty = !state.loading && items.isEmpty()
@@ -245,6 +253,15 @@ class FilesFragment : Fragment() {
         renderSelectionState()
     }
 
+    private fun selectDateGroup(dateKey: String) {
+        val datePaths = currentItems()
+            .filter { FileFormatters.dateSectionKey(it.modifiedAt) == dateKey }
+            .map { it.path }
+        if (datePaths.isEmpty()) return
+        selectedPaths.addAll(datePaths)
+        renderSelectionState()
+    }
+
     private fun clearSelection() {
         if (selectedPaths.isEmpty()) {
             renderSelectionState()
@@ -280,7 +297,7 @@ class FilesFragment : Fragment() {
     private fun confirmDeleteSelected() {
         val items = selectedItems()
         if (items.isEmpty()) return
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("删除文件")
             .setMessage("确定删除选中的 ${items.size} 个项目吗？")
             .setPositiveButton("删除") { _, _ -> deleteItems(items) }

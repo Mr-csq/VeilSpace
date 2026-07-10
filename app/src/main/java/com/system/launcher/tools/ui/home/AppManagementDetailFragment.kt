@@ -7,7 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -222,7 +222,7 @@ class AppManagementDetailFragment : Fragment() {
     }
 
     private fun confirmUninstall(app: AppInfo) {
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("卸载应用")
             .setMessage("确定要从隐藏空间中卸载「${app.appName}」吗？记录会保留，方便你确认状态后再移除。")
             .setPositiveButton("卸载") { _, _ -> uninstallApp(app) }
@@ -244,7 +244,7 @@ class AppManagementDetailFragment : Fragment() {
     }
 
     private fun confirmRemoveRecord(app: AppInfo) {
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("移除记录")
             .setMessage("这只会移除隐藏空间中的记录和图标缓存，不会卸载应用。")
             .setPositiveButton("移除") { _, _ ->

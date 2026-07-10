@@ -9,9 +9,7 @@ import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
@@ -24,10 +22,8 @@ class AppManagementFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: AppManagementViewModel by viewModels()
     private lateinit var adapter: AppManagementAdapter
-    private lateinit var itemTouchHelper: ItemTouchHelper
     private var latestApps: List<AppInfo> = emptyList()
-    private var currentMode: AppManagementMode = AppManagementMode.HOME_ORDER
-    private var dragChanged = false
+    private var currentMode: AppManagementMode = AppManagementMode.ALL_APPS
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentAppManagementBinding.inflate(inflater, container, false)
@@ -42,41 +38,9 @@ class AppManagementFragment : Fragment() {
     }
 
     private fun setupList() {
-        adapter = AppManagementAdapter(
-            onAppClick = { app -> openDetail(app) },
-            onDragStart = { holder ->
-                if (currentMode == AppManagementMode.HOME_ORDER) itemTouchHelper.startDrag(holder)
-            }
-        )
-
-        itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
-            override fun isLongPressDragEnabled(): Boolean = false
-            override fun isItemViewSwipeEnabled(): Boolean = false
-
-            override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
-                if (currentMode != AppManagementMode.HOME_ORDER) return 0
-                return makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
-            }
-
-            override fun onMove(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
-                val moved = adapter.moveItem(viewHolder.adapterPosition, target.adapterPosition)
-                dragChanged = dragChanged || moved
-                return moved
-            }
-
-            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
-
-            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
-                super.clearView(recyclerView, viewHolder)
-                if (!dragChanged || currentMode != AppManagementMode.HOME_ORDER) return
-                dragChanged = false
-                viewModel.reorderHomeApps(adapter.finishDragAndGetPackageOrder())
-            }
-        })
-
+        adapter = AppManagementAdapter(onAppClick = { app -> openDetail(app) })
         binding.rvManagementApps.layoutManager = LinearLayoutManager(requireContext())
         binding.rvManagementApps.adapter = adapter
-        itemTouchHelper.attachToRecyclerView(binding.rvManagementApps)
     }
 
     private fun setupActions() {
@@ -88,13 +52,12 @@ class AppManagementFragment : Fragment() {
         binding.modeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) return@addOnButtonCheckedListener
             currentMode = when (checkedId) {
-                R.id.btn_all_apps -> AppManagementMode.ALL_APPS
                 R.id.btn_issue_apps -> AppManagementMode.ISSUES
-                else -> AppManagementMode.HOME_ORDER
+                else -> AppManagementMode.ALL_APPS
             }
             renderApps()
         }
-        binding.modeGroup.check(R.id.btn_home_order)
+        binding.modeGroup.check(R.id.btn_all_apps)
     }
 
     private fun observeViewModel() {
@@ -118,9 +81,6 @@ class AppManagementFragment : Fragment() {
 
     private fun appsForMode(apps: List<AppInfo>): List<AppInfo> {
         return when (currentMode) {
-            AppManagementMode.HOME_ORDER -> apps
-                .filter { it.showOnHome && it.installVerification != InstallVerification.CONFIRMED_MISSING }
-                .sortedWith(compareBy<AppInfo> { it.sortOrder }.thenBy { it.appName.lowercase() })
             AppManagementMode.ALL_APPS -> apps.sortedWith(managementComparator())
             AppManagementMode.ISSUES -> apps
                 .filter { AppManagementAdapter.hasIssue(it) }
@@ -145,7 +105,6 @@ class AppManagementFragment : Fragment() {
 
     private fun updateModeHint(count: Int) {
         binding.tvModeHint.text = when (currentMode) {
-            AppManagementMode.HOME_ORDER -> "拖动右侧手柄调整首页顺序，共 $count 个首页应用"
             AppManagementMode.ALL_APPS -> "点击应用进入详情页管理显示、后台、卸载和状态，共 $count 个记录"
             AppManagementMode.ISSUES -> "集中处理图标缺失、不可启动、待验证和已卸载记录，共 $count 个"
         }
@@ -155,12 +114,10 @@ class AppManagementFragment : Fragment() {
         binding.emptyView.visibility = if (empty) View.VISIBLE else View.GONE
         binding.rvManagementApps.visibility = if (empty) View.GONE else View.VISIBLE
         binding.tvEmptyTitle.text = when (currentMode) {
-            AppManagementMode.HOME_ORDER -> "首页暂无应用"
             AppManagementMode.ALL_APPS -> "暂无应用记录"
             AppManagementMode.ISSUES -> "暂无问题应用"
         }
         binding.tvEmptyMessage.text = when (currentMode) {
-            AppManagementMode.HOME_ORDER -> "进入全部应用，打开某个应用的首页显示开关。"
             AppManagementMode.ALL_APPS -> "安装应用后会出现在这里，也可以点击右上角刷新。"
             AppManagementMode.ISSUES -> "当前没有需要处理的应用状态。"
         }
@@ -182,4 +139,3 @@ class AppManagementFragment : Fragment() {
         const val ARG_PACKAGE_NAME = "packageName"
     }
 }
-

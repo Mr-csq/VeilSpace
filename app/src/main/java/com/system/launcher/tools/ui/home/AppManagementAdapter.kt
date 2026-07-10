@@ -1,13 +1,10 @@
 package com.system.launcher.tools.ui.home
 
-import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
-import android.view.MotionEvent
-import android.view.View
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -21,74 +18,39 @@ import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import com.system.launcher.tools.databinding.ItemAppManagementBinding
-import kotlin.math.abs
-import kotlin.math.min
 
 enum class AppManagementMode {
-    HOME_ORDER,
     ALL_APPS,
     ISSUES
 }
 
 class AppManagementAdapter(
-    private val onAppClick: (AppInfo) -> Unit,
-    private val onDragStart: (RecyclerView.ViewHolder) -> Unit
+    private val onAppClick: (AppInfo) -> Unit
 ) : ListAdapter<AppInfo, AppManagementAdapter.ViewHolder>(DiffCallback()) {
 
-    var mode: AppManagementMode = AppManagementMode.HOME_ORDER
+    var mode: AppManagementMode = AppManagementMode.ALL_APPS
         private set
-
-    private var dragSnapshot: MutableList<AppInfo>? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         return ViewHolder(ItemAppManagementBinding.inflate(LayoutInflater.from(parent.context), parent, false))
     }
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(itemAt(position), position)
+        holder.bind(getItem(position))
     }
-
-    override fun getItemCount(): Int = dragSnapshot?.size ?: super.getItemCount()
 
     fun setMode(newMode: AppManagementMode) {
         if (mode == newMode) return
         mode = newMode
-        dragSnapshot = null
         notifyDataSetChanged()
     }
 
     fun submitApps(apps: List<AppInfo>) {
-        dragSnapshot = null
         submitList(apps)
     }
 
-    fun moveItem(fromPosition: Int, toPosition: Int): Boolean {
-        if (mode != AppManagementMode.HOME_ORDER) return false
-        val working = dragSnapshot ?: currentList.toMutableList().also { dragSnapshot = it }
-        if (fromPosition !in working.indices || toPosition !in working.indices) return false
-        val moved = working.removeAt(fromPosition)
-        working.add(toPosition, moved)
-        notifyItemMoved(fromPosition, toPosition)
-        notifyItemRangeChanged(min(fromPosition, toPosition), abs(fromPosition - toPosition) + 1)
-        return true
-    }
-
-    fun finishDragAndGetPackageOrder(): List<String> {
-        val snapshot = dragSnapshot?.toList() ?: currentList
-        if (dragSnapshot != null) {
-            dragSnapshot = null
-            submitList(snapshot)
-        }
-        return snapshot.map { it.packageName }
-    }
-
-    private fun itemAt(position: Int): AppInfo {
-        return dragSnapshot?.get(position) ?: getItem(position)
-    }
-
     inner class ViewHolder(private val binding: ItemAppManagementBinding) : RecyclerView.ViewHolder(binding.root) {
-        @SuppressLint("ClickableViewAccessibility")
-        fun bind(app: AppInfo, position: Int) {
+        fun bind(app: AppInfo) {
             binding.apply {
                 val fallback = ContextCompat.getDrawable(root.context, android.R.drawable.sym_def_app_icon)
                 ivAppIcon.setImageDrawable(normalizeIcon(app.icon ?: fallback))
@@ -96,26 +58,17 @@ class AppManagementAdapter(
                 tvPackageName.text = app.packageName
 
                 val policy = ProfileAppPolicyStore.resolvePolicy(root.context, app.packageName)
-                tvStatus.text = statusText(app, policy, position)
+                tvStatus.text = statusText(app, policy)
                 tvBadge.text = badgeText(app)
 
-                val isHomeOrder = mode == AppManagementMode.HOME_ORDER
-                ivTrailing.setImageResource(if (isHomeOrder) R.drawable.ic_drag_handle_24 else R.drawable.ic_chevron_right_24)
-                ivTrailing.contentDescription = if (isHomeOrder) "拖动排序" else "进入详情"
-                ivTrailing.setOnTouchListener { _, event ->
-                    if (isHomeOrder && event.actionMasked == MotionEvent.ACTION_DOWN) {
-                        onDragStart(this@ViewHolder)
-                        true
-                    } else {
-                        false
-                    }
-                }
+                ivTrailing.setImageResource(R.drawable.ic_chevron_right_24)
+                ivTrailing.contentDescription = "进入详情"
+                ivTrailing.setOnTouchListener(null)
                 root.setOnClickListener { onAppClick(app) }
             }
         }
 
         private fun badgeText(app: AppInfo): String {
-            if (mode == AppManagementMode.HOME_ORDER) return "拖动"
             if (hasIssue(app)) return when (app.installVerification) {
                 InstallVerification.CONFIRMED_MISSING -> "已卸载"
                 InstallVerification.UNKNOWN -> "待验证"
@@ -124,9 +77,8 @@ class AppManagementAdapter(
             return if (app.showOnHome) "首页" else "未显示"
         }
 
-        private fun statusText(app: AppInfo, policy: ProfileAppPolicyStore.EffectivePolicy, position: Int): String {
+        private fun statusText(app: AppInfo, policy: ProfileAppPolicyStore.EffectivePolicy): String {
             val parts = mutableListOf<String>()
-            if (mode == AppManagementMode.HOME_ORDER) parts += "第 ${position + 1} 位"
             if (app.showOnHome) parts += "首页显示" else parts += "未显示"
             if (policy.shouldNeverAutoHide) parts += "系统保活"
             if (!policy.shouldNeverAutoHide && policy.effectiveUserKeepAlive) parts += "后台运行"

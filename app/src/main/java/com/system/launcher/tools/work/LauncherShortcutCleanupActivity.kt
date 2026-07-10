@@ -16,10 +16,28 @@ class LauncherShortcutCleanupActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val targetPackageName = intent.getStringExtra(WorkProfileManager.EXTRA_CLEANUP_PACKAGE_NAME)
         val profileOwner = isProfileOwner()
+        val allowGenericUserAppCleanup = intent.getBooleanExtra(
+            WorkProfileManager.EXTRA_CLEANUP_ALLOW_GENERIC_USER_APP,
+            false
+        )
+        val labelHints = intent.getStringArrayListExtra(WorkProfileManager.EXTRA_CLEANUP_SHORTCUT_LABELS)
+            ?.filter { it.isNotBlank() }
+            ?.toSet()
+            .orEmpty()
+        val componentHints = intent.getStringArrayListExtra(WorkProfileManager.EXTRA_CLEANUP_SHORTCUT_COMPONENTS)
+            ?.mapNotNull(ComponentName::unflattenFromString)
+            .orEmpty()
         val cleaned = if (targetPackageName != null) {
             val cleanupInstalledPackageShortcuts = profileOwner &&
-                ProfileAppPolicyTable.resolve(targetPackageName).removeLauncherShortcutsWhenInstalledInManagedProfile
-            LauncherShortcutCleaner.cleanup(this, targetPackageName, cleanupInstalledPackageShortcuts)
+                (allowGenericUserAppCleanup || ProfileAppPolicyTable.resolve(targetPackageName).removeLauncherShortcutsWhenInstalledInManagedProfile)
+            LauncherShortcutCleaner.cleanup(
+                context = this,
+                packageName = targetPackageName,
+                cleanupInstalledPackageShortcuts = cleanupInstalledPackageShortcuts,
+                allowGenericUserAppCleanup = allowGenericUserAppCleanup,
+                labelHints = labelHints,
+                componentHints = componentHints
+            )
         } else {
             false
         }
@@ -28,7 +46,10 @@ class LauncherShortcutCleanupActivity : AppCompatActivity() {
         } else {
             false
         }
-        Log.i(TAG, "Launcher shortcut cleanup activity package=$targetPackageName profileOwner=$profileOwner forwarded=$forwarded cleaned=$cleaned")
+        Log.i(
+            TAG,
+            "Launcher shortcut cleanup activity package=$targetPackageName profileOwner=$profileOwner forwarded=$forwarded cleaned=$cleaned generic=$allowGenericUserAppCleanup labels=${labelHints.size} components=${componentHints.size}"
+        )
         finishWithoutAnimation()
     }
 
@@ -51,6 +72,7 @@ class LauncherShortcutCleanupActivity : AppCompatActivity() {
                     applicationContext.packageName,
                     "${applicationContext.packageName}.work.LauncherShortcutCleanupActivity"
                 )
+                putExtras(intent)
                 putExtra(WorkProfileManager.EXTRA_CLEANUP_PACKAGE_NAME, targetPackageName)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }

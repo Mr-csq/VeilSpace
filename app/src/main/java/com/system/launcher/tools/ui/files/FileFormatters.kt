@@ -1,6 +1,7 @@
 package com.system.launcher.tools.ui.files
 
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -33,5 +34,29 @@ object FileFormatters {
     fun formatModifiedAt(timeMillis: Long): String {
         if (timeMillis <= 0L) return ""
         return SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA).format(Date(timeMillis))
+    }
+
+    fun dateSectionKey(timeMillis: Long): String {
+        if (timeMillis <= 0L) return "unknown"
+        return SimpleDateFormat("yyyyMMdd", Locale.CHINA).format(Date(timeMillis))
+    }
+
+    fun formatDateSection(timeMillis: Long): String {
+        if (timeMillis <= 0L) return "未知日期"
+        val itemDay = Calendar.getInstance(Locale.CHINA).apply { timeInMillis = timeMillis }
+        val today = Calendar.getInstance(Locale.CHINA)
+        if (isSameDay(itemDay, today)) return "今天"
+
+        val yesterday = Calendar.getInstance(Locale.CHINA).apply {
+            add(Calendar.DAY_OF_YEAR, -1)
+        }
+        if (isSameDay(itemDay, yesterday)) return "昨天"
+
+        return SimpleDateFormat("yyyy年M月d日", Locale.CHINA).format(Date(timeMillis))
+    }
+
+    private fun isSameDay(left: Calendar, right: Calendar): Boolean {
+        return left.get(Calendar.YEAR) == right.get(Calendar.YEAR) &&
+            left.get(Calendar.DAY_OF_YEAR) == right.get(Calendar.DAY_OF_YEAR)
     }
 }

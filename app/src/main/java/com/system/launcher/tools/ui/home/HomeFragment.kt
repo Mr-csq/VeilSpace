@@ -9,15 +9,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.RecyclerView
 import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
-import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.databinding.FragmentHomeBinding
+import com.system.launcher.tools.ui.common.MaterialActionDialogs
 import com.system.launcher.tools.work.ProfilePackageMonitor
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -31,6 +33,7 @@ class HomeFragment : Fragment() {
     private lateinit var appGridAdapter: AppGridAdapter
     private var pendingApkUri: Uri? = null
     private var packageMonitor: ProfilePackageMonitor? = null
+    private var dragChanged = false
 
     private val apkPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) handleSelectedApk(uri)
@@ -80,17 +83,61 @@ class HomeFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        appGridAdapter = AppGridAdapter(
-            onAppClick = { app -> launchApp(app) },
-            onAppLongClick = { app ->
-                showHomeAppActions(app)
-                true
+        appGridAdapter = AppGridAdapter(onAppClick = { app -> launchApp(app) })
+
+        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+            0
+        ) {
+            override fun isLongPressDragEnabled(): Boolean = true
+            override fun isItemViewSwipeEnabled(): Boolean = false
+
+            override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
+                if (appGridAdapter.itemCount <= 1) return 0
+                return makeMovementFlags(
+                    ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+                    0
+                )
             }
-        )
+
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val fromPosition = viewHolder.adapterPosition
+                val toPosition = target.adapterPosition
+                if (fromPosition == RecyclerView.NO_POSITION || toPosition == RecyclerView.NO_POSITION) return false
+                val moved = appGridAdapter.moveItem(fromPosition, toPosition)
+                dragChanged = dragChanged || moved
+                return moved
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) = Unit
+
+            override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
+                super.onSelectedChanged(viewHolder, actionState)
+                if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.translationZ = 12f
+                    viewHolder?.itemView?.animate()?.scaleX(1.06f)?.scaleY(1.06f)?.setDuration(100)?.start()
+                }
+            }
+
+            override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                super.clearView(recyclerView, viewHolder)
+                viewHolder.itemView.translationZ = 0f
+                viewHolder.itemView.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                if (!dragChanged) return
+                dragChanged = false
+                viewModel.reorderHomeApps(appGridAdapter.finishDragAndGetPackageOrder())
+            }
+        })
+
         binding.rvApps.apply {
             layoutManager = GridLayoutManager(requireContext(), 4)
             adapter = appGridAdapter
         }
+        itemTouchHelper.attachToRecyclerView(binding.rvApps)
     }
 
     private fun setupActions() {
@@ -99,27 +146,20 @@ class HomeFragment : Fragment() {
     }
 
     private fun showSettingsDialog() {
-        val options = arrayOf(
-            "应用管理",
-            "修复应用图标",
-            "整理桌面残留图标",
-            "修复安装环境",
-            "本应用未知来源授权"
+        MaterialActionDialogs.show(
+            context = requireContext(),
+            title = "设置",
+            actions = listOf(
+                MaterialActionDialogs.Action("应用管理", R.drawable.ic_settings_24) {
+                    findNavController().navigate(R.id.action_home_to_app_management)
+                },
+                MaterialActionDialogs.Action("修复应用图标", R.drawable.ic_repair_24) { repairAppIcons() },
+                MaterialActionDialogs.Action("整理桌面残留图标", R.drawable.ic_folder_24) { tidyDesktopResidualIcons() },
+                MaterialActionDialogs.Action("修复安装环境", R.drawable.ic_shield_24) { repairInstallEnvironment() },
+                MaterialActionDialogs.Action("本应用未知来源授权", R.drawable.ic_info_24) { launchUnknownAppSourcesSettings() }
+            )
         )
-        AlertDialog.Builder(requireContext())
-            .setTitle("设置")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> findNavController().navigate(R.id.action_home_to_app_management)
-                    1 -> repairAppIcons()
-                    2 -> tidyDesktopResidualIcons()
-                    3 -> repairInstallEnvironment()
-                    4 -> launchUnknownAppSourcesSettings()
-                }
-            }
-            .show()
     }
-
     private fun repairAppIcons() {
         Toast.makeText(requireContext(), "正在修复应用图标", Toast.LENGTH_SHORT).show()
         viewModel.repairHomeAppIcons { repaired ->
@@ -155,7 +195,7 @@ class HomeFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.profileApps.observe(viewLifecycleOwner) { apps ->
-            appGridAdapter.submitList(apps)
+            appGridAdapter.submitApps(apps)
             binding.tvHomeSubtitle.text = "${apps.size} 个首页应用"
             updateEmptyView(apps.isEmpty())
         }
@@ -181,31 +221,11 @@ class HomeFragment : Fragment() {
 
     private fun showUnavailableAppDialog(app: AppInfo) {
         val reason = app.diagnosticReason.ifBlank { "当前无法启动此应用" }
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle(app.appName)
             .setMessage(reason)
             .setPositiveButton("应用管理") { _, _ -> findNavController().navigate(R.id.action_home_to_app_management) }
             .setNegativeButton("取消", null)
-            .show()
-    }
-
-    private fun showHomeAppActions(app: AppInfo) {
-        val options = if (viewModel.isFileManagerApp(app)) {
-            arrayOf("管理此应用", "从首页隐藏", "选择文件删除")
-        } else {
-            arrayOf("管理此应用", "从首页隐藏")
-        }
-        AlertDialog.Builder(requireContext())
-            .setTitle(app.appName)
-            .setItems(options) { _, which ->
-                when (options[which]) {
-                    "管理此应用" -> findNavController().navigate(R.id.action_home_to_app_management)
-                    "从首页隐藏" -> viewModel.hideFromHome(app) {
-                        Toast.makeText(requireContext(), "已从首页隐藏", Toast.LENGTH_SHORT).show()
-                    }
-                    "选择文件删除" -> launchDeleteDocumentsPicker()
-                }
-            }
             .show()
     }
 
@@ -243,7 +263,7 @@ class HomeFragment : Fragment() {
         val diagnostic = viewModel.getPendingApkInstallDiagnostic()
         if (diagnostic != null) {
             val blocked = viewModel.isPendingApkInstallBlocked()
-            val builder = AlertDialog.Builder(requireContext())
+            val builder = MaterialAlertDialogBuilder(requireContext())
                 .setTitle(if (blocked) "无法安装此 APK" else "安装包可能无法安装")
                 .setMessage(diagnostic)
             if (blocked) {
@@ -315,5 +335,4 @@ class HomeFragment : Fragment() {
         _binding = null
     }
 }
-
 

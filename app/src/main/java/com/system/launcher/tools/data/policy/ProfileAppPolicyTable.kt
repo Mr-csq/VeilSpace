@@ -140,6 +140,21 @@ object ProfileAppPolicyTable {
 
     private val defaultCategory = setOf(Intent.CATEGORY_DEFAULT)
 
+    private val genericUserAppResidualHideReasons = setOf(
+        "foregroundChange",
+        "manualTidyDesktopResidualIcons"
+    )
+
+    private val genericUserAppResidualHideActionSet = setOf(
+        ProfileAppResidualHideAction.REMOVE_LEGACY_LAUNCHER_SHORTCUTS
+    )
+
+    private val genericWorkProfileShortcutLabelPrefixes = setOf(
+        "工作",
+        "工作资料",
+        "系统工具"
+    )
+
     private val policies: Map<String, ProfileAppPolicy> = buildList {
         add(
             ProfileAppPolicy(
@@ -457,6 +472,32 @@ object ProfileAppPolicyTable {
         return policies.values
             .filter { it.residualHideCandidate }
             .flatMapTo(linkedSetOf()) { it.postLaunchHidePackageNames }
+    }
+
+    fun isResidualHideActionReasonAllowed(reason: String): Boolean {
+        return reason.substringBefore(":") in genericUserAppResidualHideReasons
+    }
+
+    fun shouldAttemptGenericUserAppResidualHide(reason: String): Boolean {
+        return isResidualHideActionReasonAllowed(reason)
+    }
+
+    fun genericUserAppResidualHideActions(): Set<ProfileAppResidualHideAction> {
+        return genericUserAppResidualHideActionSet
+    }
+
+    fun genericUserAppShortcutLabels(baseLabels: Set<String>): Set<String> {
+        return baseLabels + genericWorkProfileShortcutLabels(baseLabels)
+    }
+
+    fun genericWorkProfileShortcutLabels(baseLabels: Set<String>): Set<String> {
+        return baseLabels
+            .filter { it.isNotBlank() }
+            .flatMapTo(linkedSetOf()) { label ->
+                genericWorkProfileShortcutLabelPrefixes.map { prefix ->
+                    if (label.startsWith(prefix)) label else prefix + label
+                }
+            }
     }
 
     fun shouldAttemptResidualHide(packageName: String): Boolean {

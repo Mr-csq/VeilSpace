@@ -3,25 +3,52 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
+    <!-- Theme color seeds: update these to change the app palette. -->
+    <color name="brand_cyan">#81EEFC</color>
+    <color name="brand_lavender">#EFD4FF</color>
+
+    <!-- Privacy Space UI tokens -->
+    <color name="ui_background">#FBF8FC</color>
+    <color name="ui_surface">#FFFFFFFF</color>
+    <color name="ui_surface_variant">#F0E9F6</color>
+    <color name="ui_surface_variant_pressed">#E5D8EF</color>
+    <color name="ui_icon_button">#F0E9F6</color>
+    <color name="ui_icon_button_pressed">#E4D6EF</color>
+    <color name="ui_action_icon_container">@color/brand_lavender</color>
+    <color name="ui_primary">@color/brand_cyan</color>
+    <color name="ui_primary_pressed">@color/brand_lavender</color>
+    <color name="ui_primary_container">@color/brand_cyan</color>
+    <color name="ui_on_primary_container">@color/ui_text_primary</color>
+    <color name="ui_secondary_container">@color/brand_lavender</color>
+    <color name="ui_on_secondary_container">#4A235F</color>
+    <color name="ui_text_primary">#111827</color>
+    <color name="ui_text_secondary">#667085</color>
+    <color name="ui_text_tertiary">#98A2B3</color>
+    <color name="ui_outline">#D8D3E0</color>
+    <color name="ui_divider">#1A111827</color>
+    <color name="ui_error">#B42318</color>
+    <color name="ui_error_container">#FEE4E2</color>
+    <color name="ui_preview_scrim">#99000000</color>
+
     <!-- Material 3 Light Theme Colors -->
-    <color name="md_theme_light_primary">#6750A4</color>
-    <color name="md_theme_light_onPrimary">#FFFFFF</color>
-    <color name="md_theme_light_primaryContainer">#EADDFF</color>
-    <color name="md_theme_light_onPrimaryContainer">#21005D</color>
-    <color name="md_theme_light_secondary">#625B71</color>
+    <color name="md_theme_light_primary">@color/ui_primary</color>
+    <color name="md_theme_light_onPrimary">@color/ui_text_primary</color>
+    <color name="md_theme_light_primaryContainer">@color/ui_primary_container</color>
+    <color name="md_theme_light_onPrimaryContainer">@color/ui_on_primary_container</color>
+    <color name="md_theme_light_secondary">#6F4B7D</color>
     <color name="md_theme_light_onSecondary">#FFFFFF</color>
-    <color name="md_theme_light_secondaryContainer">#E8DEF8</color>
-    <color name="md_theme_light_onSecondaryContainer">#1D192B</color>
+    <color name="md_theme_light_secondaryContainer">@color/ui_secondary_container</color>
+    <color name="md_theme_light_onSecondaryContainer">@color/ui_on_secondary_container</color>
 
     <!-- Material 3 Dark Theme Colors -->
-    <color name="md_theme_dark_primary">#D0BCFF</color>
-    <color name="md_theme_dark_onPrimary">#381E72</color>
-    <color name="md_theme_dark_primaryContainer">#4F378B</color>
-    <color name="md_theme_dark_onPrimaryContainer">#EADDFF</color>
-    <color name="md_theme_dark_secondary">#CCC2DC</color>
-    <color name="md_theme_dark_onSecondary">#332D41</color>
-    <color name="md_theme_dark_secondaryContainer">#4A4458</color>
-    <color name="md_theme_dark_onSecondaryContainer">#E8DEF8</color>
+    <color name="md_theme_dark_primary">#81EEFC</color>
+    <color name="md_theme_dark_onPrimary">@color/ui_text_primary</color>
+    <color name="md_theme_dark_primaryContainer">@color/brand_lavender</color>
+    <color name="md_theme_dark_onPrimaryContainer">@color/ui_text_primary</color>
+    <color name="md_theme_dark_secondary">#EFD4FF</color>
+    <color name="md_theme_dark_onSecondary">#4A235F</color>
+    <color name="md_theme_dark_secondaryContainer">#653B7A</color>
+    <color name="md_theme_dark_onSecondaryContainer">#F8E8FF</color>
 
     <!-- Launcher Icon Background -->
     <color name="ic_launcher_background">#FF9800</color>

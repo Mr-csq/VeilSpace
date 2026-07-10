@@ -111,3 +111,7 @@ lint-baseline.xml
 /*.pid
 /*.path
 /.claude/
+
+# Codex local Gradle scratch dirs
+/.codex-gradle-home/
+/.gradle-native/

@@ -17,6 +17,7 @@ data class AppInfo(
     val installVerification: InstallVerification = InstallVerification.UNKNOWN,
     val launchVerification: LaunchVerification = LaunchVerification.UNKNOWN,
     val iconStatus: IconStatus = if (icon == null) IconStatus.MISSING else IconStatus.OK,
+    val launcherComponentNames: Set<String> = emptySet(),
     val lastSeenAt: Long = System.currentTimeMillis(),
     val diagnosticReason: String = ""
 ) {

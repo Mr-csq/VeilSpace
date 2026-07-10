@@ -24,6 +24,34 @@
             android:contentDescription="图片缩略图"
             android:scaleType="centerCrop" />
 
+        <LinearLayout
+            android:id="@+id/video_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="20dp"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="4dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:contentDescription="播放"
+                android:src="@drawable/ic_play_circle_18" />
+
+            <TextView
+                android:id="@+id/tv_video_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:layout_marginStart="2dp"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:textColor="@android:color/white"
+                android:textSize="12sp" />
+        </LinearLayout>
+
         <View
             android:id="@+id/selection_overlay"
             android:layout_width="match_parent"
@@ -34,15 +62,16 @@
         <FrameLayout
             android:id="@+id/check_container"
             android:layout_width="26dp"
-            android:layout_height="26dp"
+            android:layout_height="20dp"
             android:layout_gravity="top|end"
-            android:layout_margin="7dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginBottom="4dp"
             android:background="@drawable/bg_file_check"
             android:visibility="gone">
 
             <ImageView
-                android:layout_width="18dp"
-                android:layout_height="18dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:layout_gravity="center"
                 android:contentDescription="已选择"
                 android:src="@drawable/ic_check_white" />
@@ -52,11 +81,11 @@
     <TextView
         android:id="@+id/tv_name"
         android:layout_width="0dp"
-        android:layout_height="38dp"
+        android:layout_height="40dp"
         android:ellipsize="end"
         android:gravity="center"
         android:maxLines="2"
-        android:textColor="#1F2937"
+        android:textColor="@color/ui_text_primary"
         android:textSize="12sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
