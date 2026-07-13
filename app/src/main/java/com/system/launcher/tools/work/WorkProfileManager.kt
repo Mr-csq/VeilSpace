@@ -75,16 +75,30 @@ class WorkProfileManager @Inject constructor(
         private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         private const val ACTIVE_LAUNCH_PACKAGE = "active_launch_package"
         private const val ACTIVE_LAUNCH_STARTED_AT = "active_launch_started_at"
+        private const val ACTIVE_LAUNCH_TOKEN = "active_launch_token"
         private const val FOREGROUND_MONITOR_POLL_MS = 300L
         private const val FOREGROUND_MONITOR_IDLE_POLL_MS = 1_500L
         private const val FOREGROUND_LEAVE_DEBOUNCE_MS = 300L
         private const val FOREGROUND_MONITOR_TIMEOUT_MS = 60_000L
         private const val RESIDUAL_HIDE_ACTION_COOLDOWN_MS = 2_000L
+        private const val ACTIVE_LAUNCH_STALE_SESSION_MS = 60 * 60_000L
+        private val ACTIVE_LAUNCH_HIDE_BYPASS_REASONS = setOf(
+            "foregroundChange",
+            "launchFailed",
+            "launchException"
+        )
     }
 
     private data class ForegroundSnapshot(
         val packageName: String?,
         val targetMovedToBackground: Boolean
+    )
+
+    private data class ActiveLaunchSession(
+        val packageName: String,
+        val startedAt: Long,
+        val token: Long,
+        val elapsedMs: Long
     )
 
     private fun getAdminComponent(): ComponentName {
@@ -600,9 +614,13 @@ class WorkProfileManager @Inject constructor(
     private fun hidePolicyPackagesInProfileIfAllowed(packageName: String, reason: String): List<Boolean> {
         val policy = ProfileAppPolicyTable.resolve(packageName)
         return policy.postLaunchHidePackageNames.map { targetPackageName ->
-            hideSingleAppInProfileIfAllowed(targetPackageName, reason).also { hidden ->
-                if (hidden || shouldAttemptResidualHideActions(targetPackageName, reason)) {
-                    applyResidualHideActions(targetPackageName, reason)
+            if (shouldDeferAutoHideForActiveLaunch(targetPackageName, reason)) {
+                false
+            } else {
+                hideSingleAppInProfileIfAllowed(targetPackageName, reason).also { hidden ->
+                    if (hidden || shouldAttemptResidualHideActions(targetPackageName, reason)) {
+                        applyResidualHideActions(targetPackageName, reason)
+                    }
                 }
             }
         }
@@ -1141,30 +1159,18 @@ class WorkProfileManager @Inject constructor(
     }
     fun rehideAppsInProfile(apps: List<AppInfo>, reason: String): Int {
         if (!isProfileOwner()) return 0
-        val activePackage = sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null)
-        val activeStartedAt = sharedPrefs.getLong(ACTIVE_LAUNCH_STARTED_AT, 0L)
-        val activeLaunchValid = activePackage != null &&
-            System.currentTimeMillis() - activeStartedAt <= FOREGROUND_MONITOR_TIMEOUT_MS
-        val activeLaunchSkipAllowed = activeLaunchValid && reason.substringBefore(":") != "homeLoadProfileApps"
+        val activeSession = getActiveLaunchSession()
         var hiddenCount = 0
         collectPackagesForResidualHide(apps)
             .forEach { packageName ->
-                if (activeLaunchSkipAllowed && packageName == activePackage) {
-                    Log.i(TAG, "Skip rehide active launched app reason=$reason package=$packageName")
-                    return@forEach
-                }
                 if (prepareResidualHideTarget(packageName, reason) && hideAppInProfileIfAllowed(packageName, reason)) {
                     hiddenCount++
                     schedulePostHideRetries(packageName, reason)
                 }
             }
-        if (activePackage != null && !activeLaunchSkipAllowed) {
-            Log.i(TAG, "Clear active launch session during rehide reason=$reason active=$activePackage valid=$activeLaunchValid")
-            clearActiveLaunchSession()
-        }
         Log.i(
             TAG,
-            "Rehid profile apps reason=$reason count=$hiddenCount active=$activePackage activeStartedAt=$activeStartedAt"
+            "Rehid profile apps reason=$reason count=$hiddenCount active=${activeSession?.packageName} activeStartedAt=${activeSession?.startedAt}"
         )
         return hiddenCount
     }
@@ -1196,49 +1202,77 @@ class WorkProfileManager @Inject constructor(
     }
 
     fun shouldDeferPackageEventAutoHide(packageName: String): Boolean {
-        val activePackage = sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null) ?: return false
-        val activeStartedAt = sharedPrefs.getLong(ACTIVE_LAUNCH_STARTED_AT, 0L)
-        if (activeStartedAt <= 0L) return false
-
-        val policy = ProfileAppPolicyTable.resolve(activePackage)
-        val suppressMs = policy.launchPackageEventAutoHideSuppressMs
-        val elapsed = System.currentTimeMillis() - activeStartedAt
-        if (suppressMs <= 0L || elapsed > suppressMs) {
-            Log.i(
-                TAG,
-                "Package event auto-hide suppression expired active=$activePackage event=$packageName elapsed=$elapsed limit=$suppressMs"
-            )
-            return false
-        }
-
-        val deferredPackages = policy.postLaunchHidePackageNames + policy.preLaunchPackages + policy.foregroundPackageNames
-        val shouldDefer = packageName in deferredPackages
-        if (shouldDefer) {
-            Log.i(
-                TAG,
-                "Deferring package event auto-hide during active launch active=$activePackage event=$packageName elapsed=$elapsed limit=$suppressMs"
-            )
-        }
-        return shouldDefer
+        return shouldDeferAutoHideForActiveLaunch(packageName, "packageReceiver")
     }
 
-    private fun markActiveLaunchSession(packageName: String) {
+    private fun markActiveLaunchSession(packageName: String): ActiveLaunchSession {
+        val now = System.currentTimeMillis()
+        val token = System.nanoTime()
         sharedPrefs.edit()
             .putString(ACTIVE_LAUNCH_PACKAGE, packageName)
-            .putLong(ACTIVE_LAUNCH_STARTED_AT, System.currentTimeMillis())
+            .putLong(ACTIVE_LAUNCH_STARTED_AT, now)
+            .putLong(ACTIVE_LAUNCH_TOKEN, token)
             .apply()
-        Log.i(TAG, "Marked active launch session package=$packageName")
+        Log.i(TAG, "Marked active launch session package=$packageName token=$token")
+        return ActiveLaunchSession(packageName, now, token, 0L)
     }
 
-    private fun clearActiveLaunchSession() {
+    private fun clearActiveLaunchSession(packageName: String? = null, token: Long? = null) {
+        if (packageName != null && sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null) != packageName) return
+        if (token != null && sharedPrefs.getLong(ACTIVE_LAUNCH_TOKEN, 0L) != token) return
         sharedPrefs.edit()
             .remove(ACTIVE_LAUNCH_PACKAGE)
             .remove(ACTIVE_LAUNCH_STARTED_AT)
+            .remove(ACTIVE_LAUNCH_TOKEN)
             .apply()
     }
 
-    private fun startLaunchedAppForegroundMonitor(packageName: String) {
-        val sessionStartedAt = System.currentTimeMillis()
+    private fun getActiveLaunchSession(): ActiveLaunchSession? {
+        val packageName = sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null)?.takeIf { it.isNotBlank() } ?: return null
+        val startedAt = sharedPrefs.getLong(ACTIVE_LAUNCH_STARTED_AT, 0L)
+        val token = sharedPrefs.getLong(ACTIVE_LAUNCH_TOKEN, 0L)
+        if (startedAt <= 0L || token == 0L) return null
+        val elapsedMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L)
+        return ActiveLaunchSession(packageName, startedAt, token, elapsedMs)
+    }
+
+    private fun isActiveLaunchSession(packageName: String, token: Long): Boolean {
+        return sharedPrefs.getString(ACTIVE_LAUNCH_PACKAGE, null) == packageName &&
+            sharedPrefs.getLong(ACTIVE_LAUNCH_TOKEN, 0L) == token
+    }
+
+    private fun shouldDeferAutoHideForActiveLaunch(packageName: String, reason: String): Boolean {
+        if (reason.substringBefore(":") in ACTIVE_LAUNCH_HIDE_BYPASS_REASONS) return false
+        val session = getActiveLaunchSession() ?: return false
+        val policy = ProfileAppPolicyTable.resolve(session.packageName)
+        val protectedPackages = policy.postLaunchHidePackageNames +
+            policy.preLaunchPackages +
+            policy.foregroundPackageNames
+        if (packageName !in protectedPackages) return false
+
+        if (session.elapsedMs > ACTIVE_LAUNCH_STALE_SESSION_MS) {
+            val snapshot = getCurrentForegroundSnapshot(session.startedAt - 2_000L, session.packageName)
+            val activeStillForeground = snapshot.packageName != null && snapshot.packageName in policy.foregroundPackageNames
+            if (!activeStillForeground) {
+                Log.i(
+                    TAG,
+                    "Active launch guard expired stale session active=${session.packageName} target=$packageName reason=$reason elapsed=${session.elapsedMs}"
+                )
+                clearActiveLaunchSession(session.packageName, session.token)
+                return false
+            }
+        }
+
+        Log.i(
+            TAG,
+            "Deferring auto-hide during active launch active=${session.packageName} target=$packageName reason=$reason elapsed=${session.elapsedMs}"
+        )
+        return true
+    }
+
+    private fun startLaunchedAppForegroundMonitor(packageName: String, session: ActiveLaunchSession) {
+        val sessionStartedAt = session.startedAt
+        val sessionToken = session.token
         val policy = ProfileAppPolicyTable.resolve(packageName)
         val minForegroundMsBeforeHide = policy.minForegroundMsBeforeHide
         val foregroundPackageNames = policy.foregroundPackageNames
@@ -1247,7 +1281,7 @@ class WorkProfileManager @Inject constructor(
         var nonTargetForegroundFirstSeenAt = 0L
 
         fun pollForeground() {
-            if (!isActiveLaunchSession(packageName)) return
+            if (!isActiveLaunchSession(packageName, sessionToken)) return
 
             val now = System.currentTimeMillis()
             val elapsed = now - sessionStartedAt
@@ -1299,7 +1333,7 @@ class WorkProfileManager @Inject constructor(
                 }
 
                 val hidden = hideAppInProfileIfAllowed(packageName, "foregroundChange")
-                clearActiveLaunchSession()
+                clearActiveLaunchSession(packageName, sessionToken)
                 if (hidden) {
                     schedulePostHideRetries(packageName, "foregroundChange")
                 }
@@ -1309,7 +1343,7 @@ class WorkProfileManager @Inject constructor(
 
             if (elapsed >= FOREGROUND_MONITOR_TIMEOUT_MS && !observedTargetInForeground) {
                 Log.w(TAG, "Foreground monitor timed out before detecting target foreground: $packageName")
-                clearActiveLaunchSession()
+                clearActiveLaunchSession(packageName, sessionToken)
                 return
             }
 
@@ -1364,8 +1398,8 @@ class WorkProfileManager @Inject constructor(
                 unhideAppInProfile(packageName)
             }
             if (startLaunchableApp(packageName)) {
-                markActiveLaunchSession(packageName)
-                startLaunchedAppForegroundMonitor(packageName)
+                val session = markActiveLaunchSession(packageName)
+                startLaunchedAppForegroundMonitor(packageName, session)
                 Log.i(TAG, "Launched app in profile: $packageName")
                 true
             } else {
