@@ -3,53 +3,64 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- Theme color seeds: update these to change the app palette. -->
-    <color name="brand_cyan">#81EEFC</color>
-    <color name="brand_lavender">#EFD4FF</color>
+    <!-- VeilSpace semantic palette -->
+    <color name="space_background">#080B13</color>
+    <color name="space_background_deep">#05070D</color>
+    <color name="space_surface">#E6121724</color>
+    <color name="space_surface_high">#F21A2030</color>
+    <color name="space_surface_soft">#B31A2131</color>
+    <color name="space_surface_pressed">#F2242D42</color>
+    <color name="space_primary">#75E7F5</color>
+    <color name="space_primary_bright">#A6F4FF</color>
+    <color name="space_secondary">#A88AFF</color>
+    <color name="space_secondary_bright">#D8C8FF</color>
+    <color name="space_on_accent">#071018</color>
+    <color name="space_text_primary">#F6F8FF</color>
+    <color name="space_text_secondary">#AAB3C5</color>
+    <color name="space_text_tertiary">#737E93</color>
+    <color name="space_outline">#33D8E4FF</color>
+    <color name="space_outline_strong">#667EEAF7</color>
+    <color name="space_divider">#1FD8E4FF</color>
+    <color name="space_success">#6EE7B7</color>
+    <color name="space_warning">#F6C86B</color>
+    <color name="space_error">#FF7B8B</color>
+    <color name="space_error_container">#4D6C2330</color>
+    <color name="space_scrim">#B305070D</color>
+    <color name="space_preview_scrim">#B3000000</color>
 
-    <!-- Privacy Space UI tokens -->
-    <color name="ui_background">#FBF8FC</color>
-    <color name="ui_surface">#FFFFFFFF</color>
-    <color name="ui_surface_variant">#F0E9F6</color>
-    <color name="ui_surface_variant_pressed">#E5D8EF</color>
-    <color name="ui_icon_button">#F0E9F6</color>
-    <color name="ui_icon_button_pressed">#E4D6EF</color>
-    <color name="ui_action_icon_container">@color/brand_lavender</color>
-    <color name="ui_primary">@color/brand_cyan</color>
-    <color name="ui_primary_pressed">@color/brand_lavender</color>
-    <color name="ui_primary_container">@color/brand_cyan</color>
-    <color name="ui_on_primary_container">@color/ui_text_primary</color>
-    <color name="ui_secondary_container">@color/brand_lavender</color>
-    <color name="ui_on_secondary_container">#4A235F</color>
-    <color name="ui_text_primary">#111827</color>
-    <color name="ui_text_secondary">#667085</color>
-    <color name="ui_text_tertiary">#98A2B3</color>
-    <color name="ui_outline">#D8D3E0</color>
-    <color name="ui_divider">#1A111827</color>
-    <color name="ui_error">#B42318</color>
-    <color name="ui_error_container">#FEE4E2</color>
-    <color name="ui_preview_scrim">#99000000</color>
+    <!-- Compatibility aliases retained for business-facing view code. -->
+    <color name="brand_cyan">@color/space_primary</color>
+    <color name="brand_lavender">@color/space_secondary</color>
+    <color name="ui_background">@color/space_background</color>
+    <color name="ui_surface">@color/space_surface</color>
+    <color name="ui_surface_variant">@color/space_surface_soft</color>
+    <color name="ui_surface_variant_pressed">@color/space_surface_pressed</color>
+    <color name="ui_icon_button">#B320293A</color>
+    <color name="ui_icon_button_pressed">#E637455E</color>
+    <color name="ui_action_icon_container">#3DA88AFF</color>
+    <color name="ui_primary">@color/space_primary</color>
+    <color name="ui_primary_pressed">@color/space_primary_bright</color>
+    <color name="ui_primary_container">#3375E7F5</color>
+    <color name="ui_on_primary_container">@color/space_text_primary</color>
+    <color name="ui_secondary_container">#3DA88AFF</color>
+    <color name="ui_on_secondary_container">@color/space_secondary_bright</color>
+    <color name="ui_text_primary">@color/space_text_primary</color>
+    <color name="ui_text_secondary">@color/space_text_secondary</color>
+    <color name="ui_text_tertiary">@color/space_text_tertiary</color>
+    <color name="ui_outline">@color/space_outline</color>
+    <color name="ui_divider">@color/space_divider</color>
+    <color name="ui_error">@color/space_error</color>
+    <color name="ui_error_container">@color/space_error_container</color>
+    <color name="ui_preview_scrim">@color/space_preview_scrim</color>
 
-    <!-- Material 3 Light Theme Colors -->
-    <color name="md_theme_light_primary">@color/ui_primary</color>
-    <color name="md_theme_light_onPrimary">@color/ui_text_primary</color>
-    <color name="md_theme_light_primaryContainer">@color/ui_primary_container</color>
-    <color name="md_theme_light_onPrimaryContainer">@color/ui_on_primary_container</color>
-    <color name="md_theme_light_secondary">#6F4B7D</color>
-    <color name="md_theme_light_onSecondary">#FFFFFF</color>
-    <color name="md_theme_light_secondaryContainer">@color/ui_secondary_container</color>
-    <color name="md_theme_light_onSecondaryContainer">@color/ui_on_secondary_container</color>
+    <color name="md_theme_dark_primary">@color/space_primary</color>
+    <color name="md_theme_dark_onPrimary">@color/space_on_accent</color>
+    <color name="md_theme_dark_primaryContainer">#284B5966</color>
+    <color name="md_theme_dark_onPrimaryContainer">@color/space_primary_bright</color>
+    <color name="md_theme_dark_secondary">@color/space_secondary</color>
+    <color name="md_theme_dark_onSecondary">@color/space_on_accent</color>
+    <color name="md_theme_dark_secondaryContainer">#3D4D3A73</color>
+    <color name="md_theme_dark_onSecondaryContainer">@color/space_secondary_bright</color>
 
-    <!-- Material 3 Dark Theme Colors -->
-    <color name="md_theme_dark_primary">#81EEFC</color>
-    <color name="md_theme_dark_onPrimary">@color/ui_text_primary</color>
-    <color name="md_theme_dark_primaryContainer">@color/brand_lavender</color>
-    <color name="md_theme_dark_onPrimaryContainer">@color/ui_text_primary</color>
-    <color name="md_theme_dark_secondary">#EFD4FF</color>
-    <color name="md_theme_dark_onSecondary">#4A235F</color>
-    <color name="md_theme_dark_secondaryContainer">#653B7A</color>
-    <color name="md_theme_dark_onSecondaryContainer">#F8E8FF</color>
-
-    <!-- Launcher Icon Background -->
     <color name="ic_launcher_background">#FF9800</color>
 </resources>

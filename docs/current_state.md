@@ -1,301 +1,238 @@
 # VeilSpace 当前项目状态
 
-更新时间：2026-07-09
+更新时间：2026-07-14（第二次整体复核）
 
-本文档用于在新对话、新开发任务或代码交接时快速恢复项目上下文。后续继续开发前，建议先阅读本文档，再阅读关键源码文件。
+本文档以当前工作区源码为事实来源，用于开发交接。当前分支仍是 `main`，大量功能和 UI 调整尚未提交，继续修改前必须先查看 `git status` 与 `git diff`。
 
 ## 1. 项目定位
 
-VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间应用。
+VeilSpace 基于 Android Work Profile / Managed Profile 实现隐私空间：
 
-核心目标不是文件级加密，而是通过 Android 工作资料实现：
+- 工作资料提供应用实例和数据隔离。
+- 工作资料桌面入口伪装为“游戏中心”。
+- 隐藏空间集中安装、启动、隐藏和卸载应用。
+- 内置图片、视频和全部文件管理。
+- 通过静态策略兼容 MIUI/HyperOS 系统工具。
+- 按工作日边界切换所选应用的 VeilSpace keepAlive 和通知权限。
 
-- 应用隔离：隐私空间内的应用与主空间应用相互独立。
-- 入口隐藏：桌面上伪装为“游戏中心”。
-- 应用隐藏：工作资料内安装的应用尽量不直接暴露在系统桌面。
-- 独立安装：支持在工作资料内安装微信、抖音、Google Play、第三方 APK 等。
-- 文件管理：提供隐私空间内的图片、视频、全部文件管理能力。
+它不是文件级加密容器；keepAlive 也不等于 MIUI 电池无限制、自启动或进程常驻。
 
-当前 Android 包名：`com.system.launcher.tools`
+包名为 `com.system.launcher.tools`；minSdk 26；targetSdk / compileSdk 34；版本为 1.5（versionCode 6）。
 
-## 2. 当前技术路线
+## 2. 当前规模与架构
 
-当前路线依赖 Android Work Profile：
+- 主源码 Kotlin 文件：54 个，约 9538 行。
+- 最大类：`WorkProfileManager.kt`，约 1523 行。
+- 其次为 `HomeViewModel.kt` 约 595 行，`ProfileAppStore.kt` 与 `ProfileAppPolicyTable.kt` 各约 516 行。
+- 单 Activity + Navigation；伪装页和图片预览使用独立 Activity。
+- MVVM、Hilt、Coroutines、LiveData、ViewBinding、Material Components。
+- 应用状态主要保存在 SharedPreferences/JSON 和私有图标缓存中。
 
-- 使用 DevicePolicyManager 创建并管理工作资料。
-- 应用在工作资料中成为 Profile Owner。
-- 隐私空间应用、Google Play、第三方 APK 均安装在工作资料用户下。
-- 主空间与工作资料之间天然隔离数据和应用实例。
+主要目录：
 
-已验证：
+```text
+automation/       工作日数据、边界计算、闹钟、执行和结果记录
+data/model/       应用入口及验证状态
+data/policy/      MIUI/系统候选应用静态策略
+data/repository/  应用缓存和用户策略
+ui/automation/    工作日自动化页面
+ui/common/        统一视觉、动效、Snackbar 和底部操作表
+ui/disguise/      游戏中心伪装与跨资料代理
+ui/files/         媒体/文件浏览与预览
+ui/home/          首页、应用管理与详情
+ui/onboarding/    Work Profile 创建引导
+work/             Profile Owner、应用启动/隐藏和桌面清理
+```
 
-- Work Profile 可以成功创建。
-- 本应用可以进入工作资料并获得 owner 能力。
-- APK 可以安装到工作资料。
-- 微信等应用的安装问题已经经过日志诊断并处理过一轮。
-- FlClash 等需要后台运行的应用可以通过“允许后台运行（不自动隐藏）”策略兼容。
+## 3. Work Profile 与伪装入口
 
-## 3. 当前入口逻辑
+当前已实现：
 
-伪装入口位于工作资料桌面，显示为“游戏中心”。
+1. 通过 `ACTION_PROVISION_MANAGED_PROFILE` 创建工作资料。
+2. 工作资料实例成为 Profile Owner 后配置入口、安装限制和跨资料 Intent。
+3. `WorkProfileGameCenterAlias` 在工作资料桌面显示为“游戏中心”。
+4. `DisguiseActivity` 加载小米游戏中心网页；左上角三连击进入隐藏空间。
+5. 主资料隐藏真实入口，并尝试通过 `CrossProfileApps`/`LauncherApps` 跳转工作资料。
 
-当前实现：
+本轮已修复 API 26 直接初始化 API 28 `CrossProfileApps` 的 lint/运行风险。
 
-1. 用户点击“游戏中心”。
-2. 打开 `DisguiseActivity`。
-3. 内部 WebView 加载 `https://game.xiaomi.com`。
-4. 页面左上角存在透明热区。
-5. 用户在热区连续点击 3 次后进入真正隐藏空间。
-6. 不触发热区时，用户看到的是小米游戏中心网页。
+仍存在的核心问题：Onboarding 仍把“发现其他工作资料”表述为可授权管理，但当前代码和 Android DPC 模型都不能接管其他管理者的资料；人工 `work_profile_ready` 标记也可能让 UI 误判功能可用。详见 [Work Profile 模块](work_profile_module.md)。
 
-当前热区配置：
+## 4. 应用发现、状态和策略
 
-- 位置：左上角。
-- 大小：约 `50 x 66`。
-- 纵向偏移：已经向下调整过，最后版本去掉了可见颜色。
+应用入口按多轴记录：
 
-相关文件：
+- `entrySource`：缓存、真实发现、系统候选或内部入口。
+- `installVerification`：确认安装、确认缺失或未知。
+- `launchVerification`：可启动、不可启动、仅策略启动或未知。
+- 首页显隐、排序、keepAlive、图标状态和诊断原因。
 
-- `app/src/main/java/com/system/launcher/tools/ui/disguise/DisguiseActivity.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/disguise/TripleTapHotZoneLayout.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/disguise/GradientStatusBarView.kt`
-- `docs/disguise_module.md`
+当前原则：
 
-## 4. 隐藏空间首页
+- 一次查询失败只写未知，不直接判定卸载。
+- 安装成功并确认存在后才生成正式入口。
+- 卸载确认后再写缺失并清理关联状态。
+- `ProfileAppPolicyTable` 集中处理特殊组件、依赖包、URI fallback、自动隐藏和 launcher shortcut 清理。
+- 普通应用离开前台后隐藏；keepAlive 应用保持可见。
 
-隐藏空间首页展示工作资料内的应用入口。
+手动 keepAlive 与自动化已经统一到 `ProfileAppKeepAliveController`，避免两套逻辑分叉。手动入口目前忽略控制器返回的详细失败原因，只重新加载列表，用户反馈仍需补齐。
 
-当前逻辑：
-
-- 应用列表来源包括：
-  - 工作资料内实际安装的应用。
-  - 本地缓存的已知应用。
-  - 部分系统应用候选项，例如联系人、文件、小米应用商店、手机管家等。
-- 应用图标会缓存到本应用私有目录，避免每次进入都重新读取导致图标丢失或显示半截。
-- 设置里有“整理桌面残留图标/刷新图标”一类的维护入口，避免首页每次进入都执行高成本刷新。
-- 长按应用可执行管理操作，例如移除、允许后台运行等。
-
-已验证：
-
-- JMComic2、萌宅社区、快猫等第三方应用可在隐藏空间内启动。
-- Google Play 可以显示并使用，曾经因自动隐藏策略导致闪退，后续做过兼容。
-- FlClash 可以设置为“允许后台运行（不自动隐藏）”，避免返回桌面后被杀死。
-
-相关文件：
-
-- `app/src/main/java/com/system/launcher/tools/ui/home/HomeFragment.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/home/HomeViewModel.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/home/AppGridAdapter.kt`
-- `app/src/main/java/com/system/launcher/tools/data/repository/ProfileAppStore.kt`
-- `app/src/main/java/com/system/launcher/tools/data/repository/ProfileAppPolicyStore.kt`
-
-## 5. 应用隐藏与启动策略
-
-当前主要矛盾：
-
-- 如果启动工作资料应用后立即隐藏其包，部分应用会被系统杀死或闪退。
-- 如果不隐藏，工作资料桌面可能出现应用图标，影响隐藏目标。
-- VPN、Google Play、系统工具等应用需要特殊策略。
-
-当前策略：
-
-- 普通应用：从隐藏空间启动后，返回桌面或离开前台时再隐藏，减少桌面残留。
-- 后台应用：用户可长按选择“允许后台运行（不自动隐藏）”。这类应用不自动隐藏，避免被杀死。
-- 系统/依赖应用：通过集中策略表声明角色、启动方式、前置依赖、自动隐藏、残留图标清理等行为，避免继续在业务逻辑里散落包名判断。
-- 桌面残留图标：策略表可声明需要在工作资料和主资料同时清理的 launcher shortcut，并可触发 launcher requery。
-
-当前已落地：
-
-- `ProfileAppPolicyTable` 是隐藏/启动策略的集中入口。
-- 手机管家已覆盖 `com.miui.securitycenter` 和 `com.miui.securitymanager` 两种工作资料图标来源，返回桌面或首页刷新时会重新隐藏两者并清理残留 shortcut。
-- 工作资料设置 `com.android.settings` 作为策略入口显示为“工作资料设置”，优先启动 `com.android.settings/.MiuiSettings`，再用 `android.settings.SETTINGS` 兜底，并标记为不自动隐藏，避免启动失败后触发反复 package 事件。
-- 浏览器 `com.android.browser` 作为策略入口，优先启动 `com.android.browser.launch.SplashActivity`，失败时用 `https://www.mi.com` VIEW intent 兜底，避免隐藏状态下被误判为不可启动。
-- 妻社 `com.example.app` 已加入策略表，覆盖其混淆 launcher activity shortcut，返回桌面或首页刷新时会重新隐藏并清理残留 shortcut。
-- Google Play、Google core、文件、安装器、MIUI 系统工具等策略也通过同一张表声明。
-
-核心文件：
-
-- `app/src/main/java/com/system/launcher/tools/data/policy/ProfileAppPolicyTable.kt`
-- `app/src/main/java/com/system/launcher/tools/work/WorkProfileManager.kt`
-- `app/src/main/java/com/system/launcher/tools/work/LauncherShortcutCleaner.kt`
-- `app/src/main/java/com/system/launcher/tools/data/repository/ProfileAppPolicyStore.kt`
-
-## 6. APK 安装与应用管理
+## 5. APK 安装与应用管理
 
 当前支持：
 
-- 从隐藏空间选择 APK 并安装到工作资料。
-- 安装完成后缓存应用名称、包名和图标。
-- 隐藏空间内可移除应用。
-- 移除逻辑已经修过一轮，目标是真正从工作资料卸载，而不是只删缓存。
+- APK 选择、包/版本预检和未知来源安装授权。
+- 安装完成后的存在性确认、名称与图标缓存。
+- 全部应用、异常状态和详情页。
+- 工作资料卸载，以及确认后的策略和记录清理。
+- 首页拖拽排序、隐藏入口、图标修复、安装环境修复和桌面残留清理。
 
-历史问题：
+跨 `ProfileAppStore`、`ProfileAppPolicyStore` 和自动化配置的更新仍没有数据库事务，部分失败时存在状态不一致风险。
 
-- 曾经出现“安装失败但生成图标”的问题，原因是缓存和真实安装状态没有严格区分。
-- 曾经出现 `PACKAGE_REMOVED` 事件被误认为卸载，导致缓存被删除。
-- 微信曾经出现无法降级安装、主空间版本/工作资料版本冲突等问题，后续通过日志诊断处理。
+## 6. 文件管理
 
-当前已完成的状态分层：
+当前保留系统“文件”入口和 VeilSpace 内置文件管理。
 
-- 应用入口内部按三条轴记录，而不是只用 `installed/launchable` 布尔值：
-  - `entrySource`：`CACHED`、`DISCOVERED_INSTALLED`、`SYSTEM_CANDIDATE`、`INTERNAL`。
-  - `installVerification`：`CONFIRMED_INSTALLED`、`CONFIRMED_MISSING`、`UNKNOWN`。
-  - `launchVerification`：`LAUNCHABLE`、`NOT_LAUNCHABLE`、`POLICY_LAUNCH_ONLY`、`UNKNOWN`。
-- 刷新和包事件中“当前查不到”只会写入 `UNKNOWN`，不会直接当成未安装。
-- 只有卸载结果确认后才写入 `CONFIRMED_MISSING`；首页会过滤确认已卸载的记录，管理页仍保留记录供移除。
-- 系统候选入口来自策略表，启动前会按特殊规则尝试启用/验证，失败时只记录诊断，不删除缓存。
-- 安装失败时不生成正式入口；安装完成后确认存在才写入 `CONFIRMED_INSTALLED`。
+内置能力：
 
-相关文件：
+- 图片 / 视频 / 全部文件 Tab。
+- 图片网格、视频和普通文件列表。
+- 图片全屏左右滑动，视频交给系统播放器。
+- 按日期分组、多选、全选和批量删除。
+- Android 11+ MediaStore 删除确认。
+- 媒体权限、空状态和删除结果反馈。
 
-- `app/src/main/java/com/system/launcher/tools/ui/home/AppManagementFragment.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/home/AppManagementViewModel.kt`
-- `app/src/main/java/com/system/launcher/tools/work/WorkProfilePackageReceiver.kt`
-- `app/src/main/java/com/system/launcher/tools/data/repository/ProfileAppStore.kt`
+本轮主要是视觉和动效重做，扫描与删除领域逻辑没有形成新的自动化测试。后续重点仍是排序筛选、详情、重命名/移动、回收站和大目录性能。
 
-## 7. 文件管理模块
+## 7. 工作日自动化
 
-当前同时保留两个入口：
+本轮新增了完整的 `automation` 领域模块和配置页，替代早期简单定时方案。
 
-- 系统“文件”：调用系统文件管理/文档 UI。
-- 自研“文件管理”：VeilSpace 内部文件空间模块。
+### 产品语义
 
-自研文件管理当前能力：
+- 一份全局规则作用于全部所选应用。
+- 开始边界：启用 keepAlive、取消隐藏，并在 Android 13+ 条件满足时授予 `POST_NOTIFICATIONS`。
+- 结束边界：关闭 keepAlive、拒绝通知权限；前台应用退出后再隐藏。
+- 边界之间不轮询，用户手动修改保持到下一边界。
+- 支持中国法定工作日和自定义星期；跨午夜结束属于下一自然日。
 
-- 顶部 Tab：图片 / 视频 / 全部文件。
-- 图片网格展示缩略图。
-- 视频列表展示文件名、大小、时长等信息。
-- 图片支持全屏预览和左右滑动。
-- 视频调用系统播放器播放。
-- 支持多选和删除。
-- UI 已做过一轮接近 MIUI 文件/相册风格的优化。
+### 可靠性设计
 
-历史问题：
+- 配置 revision 进入边界 ID，保存时建立基线，避免回溯覆盖。
+- 已完成边界落盘，重复广播幂等跳过。
+- 系统时钟回拨不会重放旧边界。
+- Profile Owner 暂不可用时保留未完成结果，资料恢复后补偿。
+- Android 12+ 无精确闹钟权限时降级为非精确唤醒闹钟。
+- 开机、解锁、升级、时间/时区变化、资料恢复和权限变化时重新计算。
+- 法定工作日表覆盖 2024—2026；未知年份返回 `UNKNOWN`，不猜测。
 
-- 删除曾经第一次提示失败、第二次成功，已修过一轮。
-- 视频扫描曾经漏检，已修过一轮。
-- 系统文件入口曾经多出多个不可打开入口，目前目标是保留可打开的工作资料图标版本。
+### 测试与剩余边界
 
-相关文件：
+已有 11 个 JVM 测试覆盖节假日、调休、跨午夜、下一边界、非法配置、幂等、revision 和手动覆盖语义。
 
-- `app/src/main/java/com/system/launcher/tools/ui/files/FilesFragment.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/files/FilesViewModel.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/files/ImageGridAdapter.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/files/FileListAdapter.kt`
-- `app/src/main/java/com/system/launcher/tools/ui/files/ImagePreviewActivity.kt`
+尚未覆盖 Coordinator、SharedPreferences 迁移、AlarmManager、DPM 通知权限、receiver 恢复和 Profile Owner 真机流程。当前前台待隐藏集合只在内存中，进程退出可能导致结束边界已完成但应用没有最终隐藏。
 
-## 8. MIUI / HyperOS 设备限制
+自动化页面还有两个体验风险：
 
-当前测试设备是小米/HyperOS 环境，存在明显厂商限制。
+- 从精确闹钟授权页返回会触发刷新，可能覆盖尚未保存的草稿。
+- 应用选择使用动态 CheckBox 容器；应用数量较多时，性能和可访问性不如 RecyclerView。
 
-已观察到：
+详细语义见 [工作日自动化](workday_automation.md)。
 
-- shell 对工作资料用户的查询权限受限，例如 `pm list packages --user 12` 可能失败。
-- 某些 MIUI 系统应用即使显示在工作资料，也可能无法正常启动。
-- 小米手机管家在当前测试机上实际首页入口是 `com.miui.securitymanager`，它会跳转 `com.miui.securitycenter`；启动前必须先准备并取消隐藏 `securitycenter`，否则会因 `miui.intent.action.SECURITY_CENTER` 找不到而闪退。
-- 主空间关闭“手机管家 - 病毒扫描/安装监控”后，某些安装限制会解除，但工作资料里未必有同一套设置入口。
-- 小米应用商店、手机管家等系统应用不一定完整支持 Work Profile。
-- `com.android.settings` 在 MIUI 上不能只按普通 launcher activity 处理；`android.settings.MANAGED_PROFILE_SETTINGS` 会触发 `MANAGE_USERS` 权限限制，当前策略优先走 `com.android.settings/.MiuiSettings` 和 `android.settings.SETTINGS`。
-- `com.android.browser` 可能处于 installed=true 但 hidden=true，普通 launcher 查询会误判不可启动；需要策略组件/VIEW intent 启动。
+## 8. 统一 UI 系统
 
-结论：
+本轮新增并应用了统一视觉体系：
 
-- Work Profile 可用于实现主目标，但厂商系统应用的完整复刻不可靠。
-- 对 MIUI 系统工具应采用“能启动则接入，不能启动则降级”的策略，不建议把项目稳定性绑定在它们上面。
+- 深色空间背景、青色主操作、紫色辅助强调和语义错误色。
+- `AnimatedSpaceBackgroundView`、玻璃面板、品牌 Hero、统一按钮与卡片。
+- Navigation 转场、页面 reveal、按压缩放、列表动画和状态切换动画。
+- Toast 迁移为 Snackbar，操作菜单迁移为品牌 BottomSheet，确认框统一 `showSpace()`。
+- 首页、Onboarding、应用管理、详情、文件和图片预览已重做。
+- 伪装入口刻意保持独立视觉，不继承真实空间品牌。
 
-## 9. 当前已知问题
+详见 [UI System](ui_system.md)。
 
-需要后续继续关注：
+剩余问题：
 
-1. MIUI 系统工具仍需按机型维护策略表；当前已处理 `com.miui.securitymanager` 依赖 `com.miui.securitycenter` 的手机管家启动链路，以及 `com.miui.securitycenter` / `com.miui.securitymanager` / `com.example.app` 的工作资料桌面残留图标清理。
-2. 部分 MIUI 系统设置入口无法从工作资料直接打开。
-3. 工作资料桌面图标隐藏依赖系统行为，普通应用、后台应用、系统应用需要分策略处理。
-4. README 仍是早期脚手架说明，已经落后于真实项目状态。
-5. 应用安装、缓存、卸载状态建议继续做强一致性重构。
-6. 缺少内置诊断日志页面，很多问题仍依赖 ADB logcat。
-7. 尚未形成自动化测试或稳定的手动验收清单。
+- `AnimatedSpaceBackgroundView` 每帧创建多个渐变 shader，且只在 detach 时停止无限动画；需要真机检查后台耗电、GC 和低端机帧率。
+- 动效尚未统一响应系统动画缩放/减少动态效果设置。
+- `SpaceUi.attachPressScale` 与预览手势仍有 ClickableViewAccessibility lint。
+- 仍有 64 个硬编码文本、48 个未使用资源和多处动态字符串拼接。
 
-## 10. 推荐下一步
+## 9. MIUI / HyperOS 限制
 
-建议按模块拆分新对话继续：
+- ADB shell 可能无权查询工作资料用户。
+- 系统应用可能显示安装但被隐藏、缺少 launcher Activity 或依赖其他包。
+- 手机管家在不同机型可能由 `com.miui.securitymanager` / `com.miui.securitycenter` 提供。
+- 工作资料设置、浏览器、安装器等需要显式组件或 fallback。
+- launcher shortcut 清理、DPM 通知权限和精确闹钟受 OEM 影响。
+- keepAlive 不会修改 MIUI 电池优化、自启动或后台弹出界面权限。
 
-### 模块 A：README 和文档整理
+系统工具必须始终提供能力检测和降级提示，不能作为项目稳定性的硬依赖。
 
-- 更新 README，反映真实项目状态。
-- 增加安装、调试、设备限制说明。
-- 增加验收清单。
+## 10. 构建与质量状态
 
-### 模块 B：应用管理稳定性
+2026-07-14 本地复核：
 
-- 重构应用列表状态模型。
-- 继续扩展隐藏/启动/后台运行策略表，新增机型差异策略和内置诊断展示。
-- 完善安装失败诊断和缓存一致性。
+- `assembleDebug`：成功，增量构建 55 秒。
+- APK：`app/build/outputs/apk/debug/app-debug.apk`。
+- `testDebugUnitTest`：11 个测试，0 失败、0 错误、0 跳过。
+- `lintDebug`：成功，0 个错误、191 个警告。
+- `git diff --check`：通过；仅提示 Git 将 LF 转为 CRLF。
 
-### 模块 C：文件管理完善
+lint 通过不代表全部问题已经修复：Manifest 的受保护权限和 `QUERY_ALL_PACKAGES` 使用了 `tools:ignore`；`DisguiseActivity.onBackPressed()` 仍使用 `@SuppressLint("MissingSuperCall")`。剩余警告主要为：
 
-- 继续优化多选、删除、排序、筛选、空状态。
-- 增加文件详情、批量删除确认、刷新入口。
+- HardcodedText：64。
+- UnusedResources：48。
+- SetTextI18n：19。
+- ObsoleteSdkInt：18。
+- Overdraw：9。
+- GradleDependency：5。
+- 无障碍、静态引用、导出 receiver、RTL 等其他警告：28。
 
-### 模块 D：内置诊断工具
+构建还提示 Gradle 9 不兼容的 deprecated feature，以及本机 Android SDK XML 工具版本不一致。
 
-- 在设置页增加“诊断信息”。
-- 显示最近安装、启动、隐藏、卸载事件。
-- 减少对 ADB 日志的依赖。
+## 11. 当前优先级
 
-### 模块 E：MIUI 系统工具兼容性
+### P0：正确性与安全
 
-- 不再假设系统工具一定可用。
-- 对小米应用商店、手机管家、文件、联系人等分别建立启动策略和降级提示。
+1. 修正 Onboarding 状态模型，不再承诺接管既有 DPC 资料。
+2. 持久化前台延迟隐藏，确保进程死亡后最终收敛。
+3. 审计受保护权限、`QUERY_ALL_PACKAGES`、Device Admin 策略和导出代理组件。
+4. 修复自动化授权往返丢失草稿，以及异步保存回调访问已销毁 View 的风险。
 
-## 11. 调试约定
+### P1：测试与架构
 
-后续如果需要用户配合点击并抓日志：
+1. 为 Coordinator、Store、Alarm/DPM adapter 和恢复 receiver 补测试。
+2. 拆分 1523 行的 `WorkProfileManager`。
+3. 用 Room/DataStore 建立应用、策略、自动化和诊断的单一事实源与事务边界。
+4. 给手动 keepAlive、安装、卸载和隐藏失败提供统一结果反馈。
 
-- 必须设置明确停止时间，例如 30 秒、60 秒或 120 秒。
-- 到时间后直接读取日志，不要无限等待。
-- 日志关键词建议包含：
-  - `WorkProfileManager`
-  - `HomeViewModel`
-  - `WorkProfilePackageReceiver`
-  - `ActivityTaskManager`
-  - `ActivityManager`
-  - `AndroidRuntime`
-  - `FATAL`
-  - 目标应用包名
+### P2：质量与体验
 
-常用命令：
+1. 清理 191 个 lint 警告，先处理硬编码文本、未使用资源和无障碍。
+2. 优化动态背景的分配、生命周期与减少动态效果支持。
+3. 自动化增加执行历史、本地通知、立即试运行和独立的“管理通知权限”开关。
+4. 首页搜索/分组/批量管理；文件排序筛选、详情、移动和回收站。
+5. 增加诊断中心、环境体检和脱敏报告导出。
 
-```powershell
-adb logcat -c
-adb logcat -v time > bounded_log.txt
-```
+## 12. 真机验收清单
 
-注意：MIUI 下 shell 查询工作资料用户经常受限，不能完全依赖 `pm list packages --user <id>`。
+1. 新建资料、取消、失败和已有其他 DPC 资料。
+2. 主/工作资料入口显隐、三连击和真实游戏中心代理。
+3. 普通、keepAlive 和系统候选应用的启动/返回/隐藏。
+4. APK 成功、失败、替换、降级和卸载。
+5. 文件权限、预览、批量删除和大目录滚动。
+6. 自动化保存、精确闹钟授权、当日/跨夜边界、重启和时区变化。
+7. 结束边界时应用在前台，以及等待期间杀进程后的最终隐藏。
+8. Android 13+ 通知权限的成功、未声明、OEM 拒绝和逐应用失败隔离。
+9. 正常/大字体、TalkBack、系统动画关闭和低端机帧率。
 
-## 12. Git 仓库状态
+## 13. 文档索引
 
-远端仓库：
-
-- `https://github.com/Mr-csq/VeilSpace.git`
-
-当前本地分支：
-
-- `main`
-
-当前仓库已经完成一次初始推送。
-
-`.gitignore` 已排除根目录调试日志、截图、窗口 XML、临时 pid/path 和 `.claude/`。
-
-## 13. 新对话接续提示词
-
-新开对话时可以直接使用：
-
-```text
-这是 VeilSpace 项目。请先读取 docs/current_state.md、README.md 和相关源码，再继续处理以下模块：[写具体任务]。不要依赖旧聊天记录，以仓库当前代码为准。
-```
-
-如果是调试真机问题，可以补充：
-
-```text
-手机已连接并开启 USB 调试。如果需要我操作手机，请设置明确日志监听时长，到时间后直接分析日志。
-```
+- [README](../README.md)
+- [工作日自动化](workday_automation.md)
+- [统一 UI 系统](ui_system.md)
+- [Work Profile 核心模块](work_profile_module.md)
+- [伪装入口](disguise_module.md)
+- [Windows 构建路径](build_fast_path.md)

@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
@@ -14,6 +13,8 @@ import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.databinding.FragmentAppManagementBinding
+import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpaceMessage
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -35,29 +36,46 @@ class AppManagementFragment : Fragment() {
         setupList()
         setupActions()
         observeViewModel()
+        SpaceUi.reveal(binding.pageContent)
     }
 
     private fun setupList() {
         adapter = AppManagementAdapter(onAppClick = { app -> openDetail(app) })
         binding.rvManagementApps.layoutManager = LinearLayoutManager(requireContext())
         binding.rvManagementApps.adapter = adapter
+        SpaceUi.configureList(binding.rvManagementApps)
     }
 
     private fun setupActions() {
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
         binding.btnRefresh.setOnClickListener {
-            Toast.makeText(requireContext(), "正在刷新应用状态", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("正在刷新应用状态")
             viewModel.refreshAll()
         }
-        binding.modeGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            currentMode = when (checkedId) {
-                R.id.btn_issue_apps -> AppManagementMode.ISSUES
-                else -> AppManagementMode.ALL_APPS
-            }
-            renderApps()
+        binding.btnAutomation.setOnClickListener {
+            findNavController().navigate(R.id.action_app_management_to_automation)
         }
-        binding.modeGroup.check(R.id.btn_all_apps)
+        SpaceUi.attachPressScale(binding.btnBack, 0.9f)
+        SpaceUi.attachPressScale(binding.btnAutomation, 0.9f)
+        SpaceUi.attachPressScale(binding.btnRefresh, 0.9f)
+        binding.btnAllApps.setOnClickListener { selectMode(AppManagementMode.ALL_APPS) }
+        binding.btnIssueApps.setOnClickListener { selectMode(AppManagementMode.ISSUES) }
+        SpaceUi.attachPressScale(binding.btnAllApps, 0.98f)
+        SpaceUi.attachPressScale(binding.btnIssueApps, 0.98f)
+        renderModeSelection()
+    }
+
+    private fun selectMode(mode: AppManagementMode) {
+        if (currentMode == mode) return
+        currentMode = mode
+        SpaceUi.haptic(binding.modeGroup)
+        renderModeSelection()
+        renderApps()
+    }
+
+    private fun renderModeSelection() {
+        binding.btnAllApps.isSelected = currentMode == AppManagementMode.ALL_APPS
+        binding.btnIssueApps.isSelected = currentMode == AppManagementMode.ISSUES
     }
 
     private fun observeViewModel() {

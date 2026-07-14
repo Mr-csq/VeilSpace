@@ -13,6 +13,10 @@
         <action
             android:id="@+id/action_onboarding_to_home"
             app:destination="@id/homeFragment"
+            app:enterAnim="@anim/space_enter"
+            app:exitAnim="@anim/space_exit"
+            app:popEnterAnim="@anim/space_pop_enter"
+            app:popExitAnim="@anim/space_pop_exit"
             app:popUpTo="@id/onboardingFragment"
             app:popUpToInclusive="true" />
     </fragment>
@@ -24,10 +28,18 @@
         tools:layout="@layout/fragment_home">
         <action
             android:id="@+id/action_home_to_files"
-            app:destination="@id/filesFragment" />
+            app:destination="@id/filesFragment"
+            app:enterAnim="@anim/space_enter"
+            app:exitAnim="@anim/space_exit"
+            app:popEnterAnim="@anim/space_pop_enter"
+            app:popExitAnim="@anim/space_pop_exit" />
         <action
             android:id="@+id/action_home_to_app_management"
-            app:destination="@id/appManagementFragment" />
+            app:destination="@id/appManagementFragment"
+            app:enterAnim="@anim/space_enter"
+            app:exitAnim="@anim/space_exit"
+            app:popEnterAnim="@anim/space_pop_enter"
+            app:popExitAnim="@anim/space_pop_exit" />
     </fragment>
 
     <fragment
@@ -37,8 +49,25 @@
         tools:layout="@layout/fragment_app_management">
         <action
             android:id="@+id/action_app_management_to_app_management_detail"
-            app:destination="@id/appManagementDetailFragment" />
+            app:destination="@id/appManagementDetailFragment"
+            app:enterAnim="@anim/space_enter"
+            app:exitAnim="@anim/space_exit"
+            app:popEnterAnim="@anim/space_pop_enter"
+            app:popExitAnim="@anim/space_pop_exit" />
+        <action
+            android:id="@+id/action_app_management_to_automation"
+            app:destination="@id/automationFragment"
+            app:enterAnim="@anim/space_enter"
+            app:exitAnim="@anim/space_exit"
+            app:popEnterAnim="@anim/space_pop_enter"
+            app:popExitAnim="@anim/space_pop_exit" />
     </fragment>
+
+    <fragment
+        android:id="@+id/automationFragment"
+        android:name="com.system.launcher.tools.ui.automation.AutomationFragment"
+        android:label="工作日自动化"
+        tools:layout="@layout/fragment_automation" />
 
     <fragment
         android:id="@+id/appManagementDetailFragment"

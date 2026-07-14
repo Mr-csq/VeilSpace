@@ -1,35 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
-    android:background="@drawable/bg_ui_card"
+    android:layout_marginBottom="10dp"
     android:clickable="true"
     android:focusable="true"
     android:foreground="?attr/selectableItemBackground"
-    android:orientation="vertical">
+    app:cardBackgroundColor="@color/space_surface"
+    app:cardCornerRadius="20dp"
+    app:cardElevation="6dp"
+    app:strokeColor="@color/space_outline"
+    app:strokeWidth="1dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:minHeight="82dp"
+        android:minHeight="90dp"
         android:orientation="horizontal"
         android:paddingHorizontal="14dp"
-        android:paddingVertical="11dp">
+        android:paddingVertical="13dp">
 
         <ImageView
             android:id="@+id/iv_app_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:contentDescription="应用图标"
             android:scaleType="fitCenter" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="13dp"
             android:layout_weight="1"
             android:orientation="vertical">
 
@@ -39,7 +43,7 @@
                 android:layout_height="wrap_content"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/ui_text_primary"
+                android:textColor="@color/space_text_primary"
                 android:textSize="17sp"
                 android:textStyle="bold"
                 tools:text="应用名称" />
@@ -48,23 +52,23 @@
                 android:id="@+id/tv_package_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
+                android:layout_marginTop="3dp"
+                android:ellipsize="middle"
                 android:maxLines="1"
-                android:textColor="@color/ui_text_secondary"
-                android:textSize="12sp"
+                android:textColor="@color/space_text_tertiary"
+                android:textSize="11sp"
                 tools:text="com.example.app" />
 
             <TextView
                 android:id="@+id/tv_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="5dp"
+                android:layout_marginTop="6dp"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:textColor="@color/ui_text_secondary"
+                android:textColor="@color/space_text_secondary"
                 android:textSize="12sp"
-                tools:text="已安装 · 可启动" />
+                tools:text="首页显示 · 已安装 · 可启动" />
         </LinearLayout>
 
         <TextView
@@ -75,19 +79,19 @@
             android:background="@drawable/bg_management_badge"
             android:gravity="center"
             android:maxLines="1"
-            android:textColor="@color/ui_on_primary_container"
-            android:textSize="12sp"
+            android:textColor="@color/space_primary_bright"
+            android:textSize="11sp"
+            android:textStyle="bold"
             tools:text="首页" />
 
         <ImageView
             android:id="@+id/iv_trailing"
-            android:layout_width="40dp"
+            android:layout_width="34dp"
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="进入详情"
-            android:padding="9dp"
+            android:padding="8dp"
             android:src="@drawable/ic_chevron_right_24"
-            android:tint="@color/ui_text_tertiary" />
+            app:tint="@color/space_text_tertiary" />
     </LinearLayout>
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

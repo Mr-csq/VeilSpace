@@ -1,83 +1,83 @@
-# Privacy Space - Android 隐私空间管理工具
+# VeilSpace
 
-基于 Android Work Profile 的个人隐私空间管理应用。
+VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间应用。它利用工作资料隔离应用数据，并通过 Profile Owner 能力管理应用安装、入口显示、自动隐藏和通知运行时权限。
 
-## 项目信息
+## 当前能力
 
-- **包名**: com.system.launcher.tools
-- **最低 SDK**: Android 8.0 (API 26)
-- **目标 SDK**: Android 14 (API 34)
-- **语言**: Kotlin
-- **架构**: MVVM + Repository
+- 创建和管理 Android 工作资料，应用在资料内充当 Profile Owner。
+- 在隐藏空间内安装、启动、隐藏和卸载应用。
+- 以“游戏中心”伪装入口进入隐藏空间。
+- 缓存应用元数据与图标，并区分已安装、缺失和待验证状态。
+- 提供图片、视频和全部文件管理。
+- 允许用户为兼容 VPN 等场景开启 VeilSpace `keepAlive` 策略。
+- 按中国法定工作日或自定义星期，在全局开始/结束边界切换所选应用的 `keepAlive` 和通知权限。
+- 使用统一的深色空间视觉系统、语义色、共享组件、页面动效和 Snackbar 反馈。
 
-## 技术栈
+## 工作日自动化
 
-- **依赖注入**: Hilt
-- **导航**: Navigation Component
-- **UI**: ViewBinding
-- **生命周期**: Lifecycle (ViewModel + LiveData)
-- **异步**: Coroutines
+入口位于“应用管理”页右上角。
 
-## 项目结构
+自动化使用一份全局配置：开始时间、结束时间、日期模式和启用状态同时作用于全部所选应用。它只在时间边界执行，不会轮询并持续改写状态：
 
-```
+- 开始边界：为支持的所选应用启用 VeilSpace `keepAlive`、取消隐藏，并在 Android 13+、Profile Owner 和应用声明均满足时授予 `POST_NOTIFICATIONS`。
+- 结束边界：关闭所选应用的 `keepAlive` 并尝试拒绝通知权限。前台应用不会被强停，而是在退出前台后沿用现有安全隐藏语义。
+- 边界之间：用户的手动修改保持有效，直到下一个边界。
+
+中国法定工作日数据采用可替换 `WorkdayProvider`，当前内置 2024—2026 年国务院办公厅节假日安排，包含法定节假日与调休补班。数据年份缺失时不会猜测，界面会提示改用周一至周日任意组合的自定义星期模式。
+
+Android 12+ 优先使用 `AlarmManager` 精确闹钟。未授权时会安全降级为可能延迟的闹钟，并在界面显示状态和授权入口。开机、应用升级、系统时间/时区变化及工作资料恢复后会重新计算；只有尚未执行的最新边界会补偿一次。
+
+> “允许后台运行”专指 VeilSpace 的 `keepAlive` / 自动隐藏策略，不代表 MIUI“电池无限制”、自启动、后台弹出界面或厂商专有权限。
+
+详细设计与限制见 [docs/workday_automation.md](docs/workday_automation.md)。
+
+## 技术信息
+
+- 包名：`com.system.launcher.tools`
+- 最低 SDK：Android 8.0 / API 26
+- 目标 SDK：Android 14 / API 34
+- 语言：Kotlin
+- 架构：MVVM + Repository + Hilt
+- UI：ViewBinding + Material Components + Navigation Component
+
+主要目录：
+
+```text
 app/src/main/java/com/system/launcher/tools/
-├── PrivacySpaceApp.kt          # Application 类
-├── MainActivity.kt              # 主 Activity
-├── ui/
-│   ├── disguise/               # 伪装界面
-│   │   ├── DisguiseFragment.kt
-│   │   └── DisguiseViewModel.kt
-│   ├── home/                   # 隐私空间主界面
-│   │   ├── HomeFragment.kt
-│   │   └── HomeViewModel.kt
-│   ├── apps/                   # 应用管理
-│   │   ├── AppsFragment.kt
-│   │   └── AppsViewModel.kt
-│   ├── files/                  # 文件空间
-│   │   ├── FilesFragment.kt
-│   │   └── FilesViewModel.kt
-│   └── settings/               # 设置
-│       ├── SettingsFragment.kt
-│       └── SettingsViewModel.kt
-├── work/                       # Work Profile 相关逻辑
-│   └── WorkProfileManager.kt
-├── data/                       # Repository 层
-│   └── repository/
-│       └── WorkProfileRepository.kt
-└── di/                         # 依赖注入模块
-    └── AppModule.kt
+├── automation/       # 工作日数据、边界计算、闹钟、执行与结果记录
+├── data/             # 应用模型、缓存和静态策略
+├── ui/               # 伪装、首页、应用管理、自动化和文件管理
+├── work/             # Profile Owner 与应用隐藏/启动能力
+└── di/               # Hilt 依赖
 ```
 
-## 构建项目
+## 本地构建与检查
 
-确保已安装：
-- Android Studio Hedgehog (2023.1.1) 或更高版本
-- JDK 17
-- Android SDK 34
+环境要求：JDK 17、Android SDK 34、Gradle 8.x。仓库当前没有根目录 `gradlew` 启动脚本，可使用本机 Gradle：
 
-构建命令：
-```bash
-./gradlew assembleDebug
+```powershell
+gradle --no-daemon --max-workers=1 --console=plain testDebugUnitTest
+gradle --no-daemon --max-workers=1 --console=plain lintDebug
+gradle --no-daemon --max-workers=1 --console=plain assembleDebug
 ```
 
-## 功能说明
+工作日自动化的 JVM 单元测试覆盖法定节假日、调休补班、跨午夜、下一边界、同一分钟无效配置、重复边界幂等和手动覆盖语义。
 
-这是项目框架的初始版本，包含：
-- ✅ 完整的 MVVM 架构
-- ✅ Hilt 依赖注入配置
-- ✅ Navigation 导航框架
-- ✅ 5 个页面的基础框架（空白占位）
-- ✅ Work Profile 管理器基础类
+2026-07-14 本地复核结果：Debug 构建通过；11 个 JVM 测试全部通过；lint 为 0 个错误、191 个警告。lint 已不再阻断构建，但权限 suppress、硬编码文本、未使用资源和无障碍警告仍需要继续清理。
 
-## 下一步开发
+## 设备限制
 
-1. 实现 Work Profile 创建和管理逻辑
-2. 完善各个页面的 UI 和功能
-3. 实现应用安装和管理
-4. 实现文件空间管理
-5. 添加安全验证机制
+- Profile Owner、跨资料能力和系统应用支持程度会受 OEM 定制影响，MIUI / HyperOS 上尤其明显。
+- Android 13+ 的目标应用通知权限只有在应用声明 `POST_NOTIFICATIONS` 且 DPM 接受操作时才会记录为成功；单个应用失败不会阻断其他应用。
+- 精确闹钟权限可能被系统默认拒绝；未授权时执行可能延迟。
+- 小米系统工具的工作资料入口并不保证可用，VeilSpace 对此采用能力检测和降级提示。
 
-## 许可
+更多工程上下文见 [docs/current_state.md](docs/current_state.md)。
 
-个人项目
+其他文档：
+
+- [工作日自动化](docs/workday_automation.md)
+- [统一 UI 系统](docs/ui_system.md)
+- [Work Profile 核心模块](docs/work_profile_module.md)
+- [伪装入口](docs/disguise_module.md)
+- [Windows 构建路径](docs/build_fast_path.md)

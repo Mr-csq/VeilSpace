@@ -17,6 +17,7 @@ import com.system.launcher.tools.data.model.IconStatus
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.databinding.ItemAppGridBinding
+import com.system.launcher.tools.ui.common.SpaceUi
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -76,6 +77,10 @@ class AppGridAdapter(
     fun finishDragAndGetPackageOrder(): List<String> = apps.map { it.packageName }
 
     inner class ViewHolder(private val binding: ItemAppGridBinding) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.root, 0.95f)
+        }
+
         fun bind(app: AppInfo) {
             binding.apply {
                 tvAppName.text = app.appName

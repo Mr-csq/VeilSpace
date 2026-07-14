@@ -10,6 +10,7 @@ import coil.load
 import com.system.launcher.tools.R
 import com.system.launcher.tools.databinding.ItemFileDateHeaderBinding
 import com.system.launcher.tools.databinding.ItemFileImageBinding
+import com.system.launcher.tools.ui.common.SpaceUi
 import java.io.File
 
 class ImageGridAdapter(
@@ -61,6 +62,10 @@ class ImageGridAdapter(
     inner class DateHeaderViewHolder(
         private val binding: ItemFileDateHeaderBinding
     ) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.btnSelectDate, 0.94f)
+        }
+
         fun bind(item: FileSectionItem.DateHeader) {
             binding.tvDateHeader.text = item.label
             binding.btnSelectDate.visibility = if (selectionMode) View.VISIBLE else View.GONE
@@ -69,6 +74,10 @@ class ImageGridAdapter(
     }
 
     inner class ImageViewHolder(private val binding: ItemFileImageBinding) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.root, 0.96f)
+        }
+
         fun bind(item: FileItem) {
             val selected = selectedPaths.contains(item.path)
             val imageSource = when {

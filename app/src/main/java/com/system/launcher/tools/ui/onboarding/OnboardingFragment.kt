@@ -11,6 +11,7 @@ import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.system.launcher.tools.R
 import com.system.launcher.tools.databinding.FragmentOnboardingBinding
+import com.system.launcher.tools.ui.common.SpaceUi
 import com.system.launcher.tools.work.WorkProfileManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -43,6 +44,7 @@ class OnboardingFragment : Fragment() {
         setupUI()
         observeViewModel()
         checkProfileStatus()
+        SpaceUi.reveal(binding.pageContent)
     }
 
     override fun onResume() {
@@ -63,6 +65,10 @@ class OnboardingFragment : Fragment() {
             // 跳过引导，但功能会受限
             navigateToHome()
         }
+        SpaceUi.attachPressScale(binding.btnCreateProfile, 0.985f)
+        SpaceUi.attachPressScale(binding.btnSkip, 0.985f)
+        SpaceUi.attachPressScale(binding.btnRetry, 0.985f)
+        SpaceUi.attachPressScale(binding.btnContinueWithoutProfile, 0.985f)
     }
 
     private fun observeViewModel() {
@@ -115,6 +121,8 @@ class OnboardingFragment : Fragment() {
             btnCreateProfile.text = "授权管理"
             btnCreateProfile.visibility = View.VISIBLE
             btnSkip.visibility = View.VISIBLE
+            SpaceUi.reveal(tvTitle)
+            SpaceUi.reveal(tvDescription)
 
             btnCreateProfile.setOnClickListener {
                 authorizeExistingProfile()
@@ -170,6 +178,8 @@ class OnboardingFragment : Fragment() {
             btnSkip.text = "我已完成创建"
             btnCreateProfile.visibility = View.VISIBLE
             btnSkip.visibility = View.VISIBLE
+            SpaceUi.reveal(tvTitle)
+            SpaceUi.reveal(tvDescription)
 
             btnSkip.setOnClickListener {
                 markProfileReadyAndContinue()
@@ -190,6 +200,7 @@ class OnboardingFragment : Fragment() {
             tvDescription.text = "请按照系统提示完成授权"
             btnCreateProfile.visibility = View.GONE
             btnSkip.visibility = View.GONE
+            SpaceUi.reveal(progressBar)
         }
     }
 
@@ -219,6 +230,8 @@ class OnboardingFragment : Fragment() {
             btnContinueWithoutProfile.setOnClickListener {
                 markProfileReadyAndContinue()
             }
+            SpaceUi.reveal(tvErrorTitle)
+            SpaceUi.reveal(tvErrorMessage)
         }
     }
 

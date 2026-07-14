@@ -10,6 +10,7 @@ import coil.load
 import com.system.launcher.tools.R
 import com.system.launcher.tools.databinding.ItemFileDateHeaderBinding
 import com.system.launcher.tools.databinding.ItemFileRowBinding
+import com.system.launcher.tools.ui.common.SpaceUi
 import java.io.File
 
 class FileListAdapter(
@@ -57,6 +58,10 @@ class FileListAdapter(
     inner class DateHeaderViewHolder(
         private val binding: ItemFileDateHeaderBinding
     ) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.btnSelectDate, 0.94f)
+        }
+
         fun bind(item: FileSectionItem.DateHeader) {
             binding.tvDateHeader.text = item.label
             binding.btnSelectDate.visibility = if (selectionMode) View.VISIBLE else View.GONE
@@ -65,6 +70,10 @@ class FileListAdapter(
     }
 
     inner class FileViewHolder(private val binding: ItemFileRowBinding) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.root, 0.985f)
+        }
+
         fun bind(item: FileItem) {
             val selected = selectedPaths.contains(item.path)
             binding.tvFileName.text = item.name

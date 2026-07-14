@@ -12,7 +12,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.MimeTypeMap
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,10 +20,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.google.android.material.tabs.TabLayout
 import com.system.launcher.tools.databinding.FragmentFilesBinding
+import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpace
+import com.system.launcher.tools.ui.common.showSpaceMessage
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 
@@ -64,7 +66,7 @@ class FilesFragment : Fragment() {
                 showDeleteSummary(deleted, failed)
             }
         } else {
-            Toast.makeText(requireContext(), "已取消删除", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("已取消删除")
         }
     }
 
@@ -85,6 +87,7 @@ class FilesFragment : Fragment() {
         setupActions()
         observeViewModel()
         ensurePermissionsAndLoad()
+        SpaceUi.reveal(binding.pageContent)
     }
 
     override fun onResume() {
@@ -102,23 +105,30 @@ class FilesFragment : Fragment() {
     }
 
     private fun setupTabs() {
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("图片"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("视频"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("全部"))
-        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) {
-                selectedTab = when (tab.position) {
-                    0 -> FileTab.IMAGES
-                    1 -> FileTab.VIDEOS
-                    else -> FileTab.ALL
-                }
-                clearSelection()
-                renderContent(latestState)
-            }
+        binding.btnImages.setOnClickListener { selectFileTab(FileTab.IMAGES) }
+        binding.btnVideos.setOnClickListener { selectFileTab(FileTab.VIDEOS) }
+        binding.btnAllFiles.setOnClickListener { selectFileTab(FileTab.ALL) }
+        SpaceUi.attachPressScale(binding.btnImages, 0.98f)
+        SpaceUi.attachPressScale(binding.btnVideos, 0.98f)
+        SpaceUi.attachPressScale(binding.btnAllFiles, 0.98f)
+        renderTabSelection()
+    }
 
-            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
-            override fun onTabReselected(tab: TabLayout.Tab) = Unit
-        })
+    private fun selectFileTab(tab: FileTab) {
+        if (selectedTab == tab) return
+        selectedTab = tab
+        SpaceUi.haptic(binding.fileFilterGroup)
+        renderTabSelection()
+        clearSelection()
+        renderContent(latestState)
+        binding.rvFiles.alpha = 0f
+        binding.rvFiles.animate().alpha(1f).setDuration(240L).start()
+    }
+
+    private fun renderTabSelection() {
+        binding.btnImages.isSelected = selectedTab == FileTab.IMAGES
+        binding.btnVideos.isSelected = selectedTab == FileTab.VIDEOS
+        binding.btnAllFiles.isSelected = selectedTab == FileTab.ALL
     }
 
     private fun setupRecyclerView() {
@@ -132,9 +142,11 @@ class FilesFragment : Fragment() {
             onLongClick = { item -> enterSelectionWith(item); true },
             onDateSelectAll = { dateKey -> selectDateGroup(dateKey) }
         )
+        SpaceUi.configureList(binding.rvFiles)
     }
 
     private fun setupActions() {
+        binding.btnFileBack.setOnClickListener { findNavController().popBackStack() }
         binding.btnRefresh.setOnClickListener {
             clearSelection()
             ensurePermissionsAndLoad()
@@ -142,6 +154,11 @@ class FilesFragment : Fragment() {
         binding.btnCancelSelection.setOnClickListener { clearSelection() }
         binding.btnSelectAll.setOnClickListener { toggleSelectAll() }
         binding.btnDeleteSelected.setOnClickListener { confirmDeleteSelected() }
+        SpaceUi.attachPressScale(binding.btnFileBack, 0.9f)
+        SpaceUi.attachPressScale(binding.btnRefresh, 0.9f)
+        SpaceUi.attachPressScale(binding.btnCancelSelection, 0.9f)
+        SpaceUi.attachPressScale(binding.btnSelectAll, 0.9f)
+        SpaceUi.attachPressScale(binding.btnDeleteSelected, 0.9f)
     }
 
     private fun observeViewModel() {
@@ -149,7 +166,7 @@ class FilesFragment : Fragment() {
             latestState = state
             binding.progressBar.visibility = if (state.loading) View.VISIBLE else View.GONE
             if (state.error != null) {
-                Toast.makeText(requireContext(), state.error, Toast.LENGTH_SHORT).show()
+                showSpaceMessage(state.error, long = true, error = true)
             }
             pruneSelection(state)
             renderContent(state)
@@ -234,6 +251,7 @@ class FilesFragment : Fragment() {
     }
 
     private fun enterSelectionWith(item: FileItem) {
+        SpaceUi.haptic(binding.rvFiles)
         selectedPaths.add(item.path)
         renderSelectionState()
     }
@@ -280,8 +298,11 @@ class FilesFragment : Fragment() {
 
     private fun renderSelectionState() {
         val selectionMode = isSelectionMode()
-        binding.normalToolbar.visibility = if (selectionMode) View.GONE else View.VISIBLE
-        binding.selectionToolbar.visibility = if (selectionMode) View.VISIBLE else View.GONE
+        if (selectionMode && binding.selectionToolbar.visibility != View.VISIBLE) {
+            SpaceUi.swap(binding.normalToolbar, binding.selectionToolbar)
+        } else if (!selectionMode && binding.normalToolbar.visibility != View.VISIBLE) {
+            SpaceUi.swap(binding.selectionToolbar, binding.normalToolbar)
+        }
         binding.tvSelectionCount.text = "已选择 ${selectedPaths.size} 项"
         binding.btnDeleteSelected.isEnabled = selectedPaths.isNotEmpty()
         imageAdapter.setSelectionState(selectedPaths, selectionMode)
@@ -302,7 +323,7 @@ class FilesFragment : Fragment() {
             .setMessage("确定删除选中的 ${items.size} 个项目吗？")
             .setPositiveButton("删除") { _, _ -> deleteItems(items) }
             .setNegativeButton("取消", null)
-            .show()
+            .showSpace()
     }
 
     private fun deleteItems(items: List<FileItem>) {
@@ -323,7 +344,7 @@ class FilesFragment : Fragment() {
             deleted > 0 -> "已删除 $deleted 个项目，$failed 个删除失败"
             else -> "删除失败"
         }
-        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        showSpaceMessage(message, error = failed > 0 || deleted == 0)
     }
 
     private fun openFile(item: FileItem) {
@@ -359,9 +380,9 @@ class FilesFragment : Fragment() {
         try {
             startActivity(intent)
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), "没有可打开该文件的应用", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("没有可打开该文件的应用", error = true)
         } catch (e: SecurityException) {
-            Toast.makeText(requireContext(), "无法授权系统应用读取该文件", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法授权系统应用读取该文件", error = true)
         }
     }
 
@@ -373,7 +394,7 @@ class FilesFragment : Fragment() {
             )
         }.onFailure {
             pendingDeleteConfirmationItems = emptyList()
-            Toast.makeText(requireContext(), "无法打开删除确认", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法打开删除确认", error = true)
         }
     }
 

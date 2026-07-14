@@ -11,26 +11,34 @@
         android:layout_height="match_parent"
         android:overScrollMode="never" />
 
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="132dp"
+        android:background="@drawable/bg_preview_top_scrim"
+        android:importantForAccessibility="no" />
+
     <ImageButton
         android:id="@+id/btn_close"
         style="@style/Widget.PrivacySpace.IconButton.OnDark"
         android:layout_gravity="top|start"
-        android:layout_margin="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="18dp"
         android:contentDescription="关闭"
         android:src="@drawable/ic_close_24"
-        app:tint="@android:color/white" />
+        android:elevation="10dp"
+        app:tint="@color/white" />
 
     <TextView
         android:id="@+id/tv_counter"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="36dp"
         android:layout_gravity="top|center_horizontal"
         android:layout_marginTop="24dp"
         android:background="@drawable/bg_preview_counter"
-        android:paddingStart="12dp"
-        android:paddingTop="7dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="7dp"
-        android:textColor="@android:color/white"
-        android:textSize="14sp" />
+        android:gravity="center"
+        android:minWidth="68dp"
+        android:paddingHorizontal="14dp"
+        android:textColor="@color/white"
+        android:textSize="13sp"
+        android:textStyle="bold" />
 </FrameLayout>

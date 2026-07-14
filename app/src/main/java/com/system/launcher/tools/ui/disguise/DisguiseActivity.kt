@@ -1,5 +1,6 @@
 package com.system.launcher.tools.ui.disguise
 
+import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
@@ -230,6 +231,7 @@ class DisguiseActivity : AppCompatActivity() {
         overridePendingTransition(0, 0)
     }
 
+    @SuppressLint("MissingSuperCall")
     override fun onBackPressed() {
         if (::binding.isInitialized && binding.gameCenterWebView.canGoBack()) {
             binding.gameCenterWebView.goBack()

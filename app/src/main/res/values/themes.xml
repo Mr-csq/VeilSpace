@@ -1,30 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Base.Theme.PrivacySpace" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/md_theme_light_primary</item>
-        <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
-        <item name="colorPrimaryContainer">@color/md_theme_light_primaryContainer</item>
-        <item name="colorOnPrimaryContainer">@color/md_theme_light_onPrimaryContainer</item>
-        <item name="colorSecondary">@color/md_theme_light_secondary</item>
-        <item name="colorOnSecondary">@color/md_theme_light_onSecondary</item>
-        <item name="colorSecondaryContainer">@color/md_theme_light_secondaryContainer</item>
-        <item name="colorOnSecondaryContainer">@color/md_theme_light_onSecondaryContainer</item>
-        <item name="colorSurface">@color/ui_surface</item>
-        <item name="colorSurfaceVariant">@color/ui_surface_variant</item>
-        <item name="colorOutline">@color/ui_outline</item>
-        <item name="colorError">@color/ui_error</item>
-        <item name="android:colorBackground">@color/ui_background</item>
-        <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+    <style name="Base.Theme.PrivacySpace" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/space_primary</item>
+        <item name="colorOnPrimary">@color/space_on_accent</item>
+        <item name="colorPrimaryContainer">@color/ui_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/space_primary_bright</item>
+        <item name="colorSecondary">@color/space_secondary</item>
+        <item name="colorOnSecondary">@color/space_on_accent</item>
+        <item name="colorSecondaryContainer">@color/ui_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/space_secondary_bright</item>
+        <item name="colorSurface">@color/space_surface</item>
+        <item name="colorSurfaceVariant">@color/space_surface_soft</item>
+        <item name="colorOutline">@color/space_outline</item>
+        <item name="colorError">@color/space_error</item>
+        <item name="android:colorBackground">@color/space_background</item>
+        <item name="android:windowBackground">@color/space_background</item>
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@color/ui_background</item>
+        <item name="android:navigationBarColor">@color/space_background_deep</item>
+        <item name="android:windowActionModeOverlay">true</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.PrivacySpace.MaterialAlertDialog</item>
+        <item name="android:windowActivityTransitions">true</item>
+        <item name="android:windowEnterTransition">@android:transition/fade</item>
+        <item name="android:windowExitTransition">@android:transition/fade</item>
     </style>
 
     <style name="Theme.PrivacySpace" parent="Base.Theme.PrivacySpace" />
 
-    <style name="Theme.Transparent" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.Transparent" parent="Theme.Material3.Dark.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowContentOverlay">@null</item>
@@ -33,13 +38,14 @@
         <item name="android:backgroundDimEnabled">false</item>
     </style>
 
+    <!-- The disguise surface intentionally remains isolated from VeilSpace styling. -->
     <style name="Theme.DisguiseWait" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:colorBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:navigationBarColor">@android:color/white</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsTranslucent">false</item>
         <item name="android:backgroundDimEnabled">false</item>

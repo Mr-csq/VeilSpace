@@ -23,6 +23,7 @@ import android.os.UserHandle
 import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
@@ -34,6 +35,13 @@ import com.system.launcher.tools.data.repository.ProfileAppStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
+
+enum class SafeProfileHideResult {
+    HIDDEN,
+    DEFERRED_UNTIL_BACKGROUND,
+    NOT_APPLICABLE,
+    FAILED
+}
 
 @Singleton
 class WorkProfileManager @Inject constructor(
@@ -49,9 +57,6 @@ class WorkProfileManager @Inject constructor(
     private val launcherApps: LauncherApps by lazy {
         context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
     }
-    private val crossProfileApps: CrossProfileApps by lazy {
-        context.getSystemService(CrossProfileApps::class.java)
-    }
     private val sharedPrefs by lazy {
         context.getSharedPreferences("work_profile_prefs", Context.MODE_PRIVATE)
     }
@@ -60,6 +65,7 @@ class WorkProfileManager @Inject constructor(
     }
     private val foregroundMonitorHandler by lazy { Handler(Looper.getMainLooper()) }
     private val residualHideActionLastRunAt = mutableMapOf<String, Long>()
+    private val pendingKeepAliveHidePackages = mutableSetOf<String>()
 
     companion object {
         private const val TAG = "WorkProfileManager"
@@ -80,6 +86,7 @@ class WorkProfileManager @Inject constructor(
         private const val FOREGROUND_MONITOR_IDLE_POLL_MS = 1_500L
         private const val FOREGROUND_LEAVE_DEBOUNCE_MS = 300L
         private const val FOREGROUND_MONITOR_TIMEOUT_MS = 60_000L
+        private const val KEEP_ALIVE_HIDE_MONITOR_TIMEOUT_MS = 6 * 60 * 60_000L
         private const val RESIDUAL_HIDE_ACTION_COOLDOWN_MS = 2_000L
         private const val ACTIVE_LAUNCH_STALE_SESSION_MS = 60 * 60_000L
         private val ACTIVE_LAUNCH_HIDE_BYPASS_REASONS = setOf(
@@ -103,6 +110,11 @@ class WorkProfileManager @Inject constructor(
 
     private fun getAdminComponent(): ComponentName {
         return ComponentName(context, WorkProfileAdminReceiver::class.java)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.P)
+    private fun getCrossProfileApps(): CrossProfileApps {
+        return context.getSystemService(CrossProfileApps::class.java)
     }
 
     fun checkIfProfileExists(): Boolean {
@@ -303,7 +315,7 @@ class WorkProfileManager @Inject constructor(
             if (isProfileOwner()) return false
             val currentUser = android.os.Process.myUserHandle()
             val targetUsers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                runCatching { crossProfileApps.targetUserProfiles }.getOrDefault(emptyList())
+                runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
             } else {
                 emptyList()
             }
@@ -333,14 +345,14 @@ class WorkProfileManager @Inject constructor(
                 }.getOrElse { implicitError ->
                     Log.w(TAG, "Implicit cross-profile action start failed, trying CrossProfileApps action", implicitError)
                     runCatching {
-                        crossProfileApps.startActivity(explicitIntent, workUser, activity)
+                        getCrossProfileApps().startActivity(explicitIntent, workUser, activity)
                     }.getOrElse { explicitError ->
                         Log.w(TAG, "Explicit cross-profile start failed, falling back to launcher alias", explicitError)
-                        crossProfileApps.startMainActivity(component, workUser)
+                        getCrossProfileApps().startMainActivity(component, workUser)
                     }
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                crossProfileApps.startMainActivity(component, workUser)
+                getCrossProfileApps().startMainActivity(component, workUser)
             } else {
                 launcherApps.startMainActivity(component, workUser, null, null)
             }
@@ -785,6 +797,73 @@ class WorkProfileManager @Inject constructor(
 
     fun unhideAppInProfile(packageName: String): Boolean {
         return setAppHiddenInProfile(packageName, false)
+    }
+
+    fun isAppHiddenInProfile(packageName: String): Boolean? {
+        if (!isProfileOwner()) return null
+        return runCatching {
+            devicePolicyManager.isApplicationHidden(getAdminComponent(), packageName)
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to read hidden state package=$packageName", error)
+        }.getOrNull()
+    }
+
+    /**
+     * Applies the same foreground-safe semantics used after launching an app. If the
+     * target is currently foreground, the app is left running and hidden only after
+     * UsageStats reports that it moved to background. Re-enabling keepAlive cancels
+     * the pending hide because every poll re-checks the shared policy store.
+     */
+    fun requestSafeHideAfterKeepAliveDisabled(packageName: String, reason: String): SafeProfileHideResult {
+        if (!isProfileOwner() || !ProfileAppPolicyStore.canAutoHideApp(context, packageName)) {
+            return SafeProfileHideResult.NOT_APPLICABLE
+        }
+        if (!isPackageInstalledInProfile(packageName)) return SafeProfileHideResult.NOT_APPLICABLE
+
+        val requestedAt = System.currentTimeMillis()
+        val policy = ProfileAppPolicyTable.resolve(packageName)
+        val snapshot = getCurrentForegroundSnapshot(requestedAt - 120_000L, packageName)
+        val targetIsForeground = isActiveLaunchSession(packageName) ||
+            (snapshot.packageName != null && snapshot.packageName in policy.foregroundPackageNames)
+        if (!targetIsForeground) {
+            val hidden = hideAppInProfileIfAllowed(packageName, reason)
+            return if (hidden || isAppHiddenInProfile(packageName) == true) {
+                SafeProfileHideResult.HIDDEN
+            } else {
+                SafeProfileHideResult.FAILED
+            }
+        }
+
+        synchronized(pendingKeepAliveHidePackages) {
+            if (!pendingKeepAliveHidePackages.add(packageName)) return SafeProfileHideResult.DEFERRED_UNTIL_BACKGROUND
+        }
+        Log.i(TAG, "Deferring keepAlive hide until target leaves foreground package=$packageName reason=$reason")
+
+        fun pollUntilBackground() {
+            if (!ProfileAppPolicyStore.canAutoHideApp(context, packageName)) {
+                synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
+                Log.i(TAG, "Cancelled deferred keepAlive hide because policy changed package=$packageName")
+                return
+            }
+            val elapsed = System.currentTimeMillis() - requestedAt
+            if (elapsed >= KEEP_ALIVE_HIDE_MONITOR_TIMEOUT_MS) {
+                synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
+                Log.w(TAG, "Deferred keepAlive hide monitor timed out package=$packageName")
+                return
+            }
+            val current = getCurrentForegroundSnapshot(requestedAt - 2_000L, packageName)
+            val stillForeground = current.packageName != null && current.packageName in policy.foregroundPackageNames
+            if (stillForeground || !shouldHideAfterForegroundChange(packageName, current)) {
+                foregroundMonitorHandler.postDelayed(::pollUntilBackground, FOREGROUND_MONITOR_IDLE_POLL_MS)
+                return
+            }
+            val hidden = hideAppInProfileIfAllowed(packageName, reason)
+            synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
+            Log.i(TAG, "Completed deferred keepAlive hide package=$packageName reason=$reason hidden=$hidden")
+        }
+
+        foregroundMonitorHandler.post(::pollUntilBackground)
+        return SafeProfileHideResult.DEFERRED_UNTIL_BACKGROUND
     }
 
     private fun setAppHiddenInProfile(

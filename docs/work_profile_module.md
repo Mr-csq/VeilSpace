@@ -1,219 +1,126 @@
 # Work Profile 核心模块说明
 
-## 功能概述
+更新时间：2026-07-14
 
-Work Profile 模块是隐私空间的核心功能，通过 Android 系统的 Managed Profile 机制创建独立的隔离空间。
+## 模块定位
+
+VeilSpace 使用 Android Managed Profile 隔离应用实例和数据。应用只有在工作资料内成为 Profile Owner 后，才能配置跨资料入口、调整资料限制、管理目标应用隐藏状态，并通过 DevicePolicyManager 控制受支持的运行时权限。
+
+它不是文件加密容器，也不能绕过 OEM 对工作资料、系统应用和后台进程的限制。
 
 ## 核心组件
 
-### 1. WorkProfileAdminReceiver
-设备管理接收器，处理 Profile 生命周期回调。
+### `WorkProfileManager`
 
-**关键回调**：
-- `onEnabled()` - Profile 激活成功
-- `onDisabled()` - Profile 被停用
-- `onProfileProvisioningComplete()` - Profile 创建完成
+当前约 1523 行，集中承担：
 
-**功能**：
-- 保存 Profile 状态到 SharedPreferences
-- 自动安装必要组件（预留接口）
-- 记录生命周期事件
+- 工作资料发现、Profile Owner 判断和 quiet mode 恢复。
+- Managed Profile provisioning、启用和移除。
+- activity alias 与跨资料 Intent filter 配置。
+- APK 安装环境修复、系统候选应用启用。
+- 应用启动、显隐、卸载和启动验证。
+- UsageStats 前后台观察、延迟自动隐藏。
+- MIUI launcher shortcut 清理与重新查询。
+- keepAlive 关闭后的前台安全隐藏。
 
-### 2. WorkProfileManager
-封装 Work Profile 的所有管理功能。
+API 28 的 `CrossProfileApps` 已隔离到带 `@RequiresApi(28)` 的获取方法，修复了此前 minSdk 26 直接初始化高版本类型的问题。该类仍然职责过重，应继续按 provisioning、跨资料导航、包控制、启动、可见性和 launcher 清理拆分。
 
-**核心方法**：
+### `WorkProfileAdminReceiver`
 
-#### checkIfProfileExists()
-检测 Work Profile 是否已存在。
+- `onEnabled()`：记录资料启用并配置跨资料入口。
+- `onDisabled()`：记录资料停用。
+- `onProfileProvisioningComplete()`：记录 provisioning 完成并初始化资料。
 
-检测方式：
-1. 通过 `UserManager.userProfiles` 检查管理配置文件
-2. 检查是否是 Profile Owner
-3. 读取 SharedPreferences 缓存状态
+### 包与生命周期组件
 
-```kotlin
-val exists = workProfileManager.checkIfProfileExists()
+- `WorkProfilePackageReceiver`：处理包添加、替换、变化和移除，刷新缓存与隐藏策略。
+- `WorkProfileSetupReceiver`：在开机和应用更新后恢复资料入口配置。
+- `LauncherShortcutCleaner` 及代理 Activity/Receiver：处理 MIUI 桌面残留 shortcut。
+- `AutomationLifecycleReceiver`：在解锁、时间/时区变化、资料恢复和精确闹钟权限变化后恢复工作日自动化。
+
+### 策略与状态
+
+- `ProfileAppPolicyTable`：系统候选、依赖包、启动 fallback、自动隐藏和 shortcut 清理的静态策略。
+- `ProfileAppPolicyStore`：用户 keepAlive/隐藏策略。
+- `ProfileAppStore`：应用入口、安装/启动验证状态和图标缓存。
+- `ProfileAppKeepAliveController`：手动操作和自动化共用的 keepAlive 领域入口。
+
+## 启动和入口流程
+
+```text
+MainActivity
+├─ 当前实例是 Profile Owner
+│  ├─ 启用并配置工作资料
+│  ├─ 注册跨资料 Intent filter
+│  └─ 进入隐藏空间首页
+└─ 当前实例不是 Profile Owner
+   ├─ 隐藏主资料真实入口
+   ├─ 尝试跳转工作资料的伪装入口
+   └─ 无可用资料时进入 Onboarding
 ```
 
-#### createProfile(activity)
-引导用户创建 Work Profile。
+工作资料桌面入口为 `WorkProfileGameCenterAlias`，目标是 `DisguiseActivity`。左上角三连击后通过 `ACTION_OPEN_PRIVACY_SPACE` 进入隐藏空间。
 
-流程：
-1. 检测设备是否支持 Managed Profile
-2. 创建 Provisioning Intent
-3. 启动系统授权流程
-4. 处理结果回调
+跨资料动作包括：
 
-```kotlin
-workProfileManager.createProfile(requireActivity())
-```
+- 主资料访问工作资料：`ACTION_OPEN_PRIVACY_SPACE`。
+- 工作资料打开主资料真实游戏中心：`ACTION_OPEN_REAL_GAME_CENTER`。
+- 工作资料请求主资料清理桌面 shortcut：`ACTION_CLEANUP_LAUNCHER_SHORTCUT`。
 
-#### isProfileRunning()
-检测 Profile 是否正在运行。
+## 创建流程
 
-#### lockProfile()
-锁定/暂停 Work Profile（需要 Profile Owner 权限）。
+1. Onboarding 检查资料是否存在和本地就绪标记。
+2. 不存在时，`createProfile()` 检查 `isProvisioningAllowed()`。
+3. 启动 `ACTION_PROVISION_MANAGED_PROFILE`，指定 `WorkProfileAdminReceiver`。
+4. 系统完成后回调 `onProfileProvisioningComplete()`。
+5. Profile Owner 启用资料，并配置跨资料入口和安装策略。
 
-#### getInstalledAppsInProfile()
-获取 Profile 内已安装的应用列表。
+### 当前状态模型缺陷
 
-返回 `List<AppInfo>`，包含：
-- `packageName` - 包名
-- `appName` - 应用名称
-- `isSystemApp` - 是否系统应用
+现有 UI 把“发现已有工作资料”描述为可以“授权管理”，但 `becomeProfileOwner()` 在不是 owner 时仍调用 `createProfile()`，而 `createProfile()` 遇到已存在资料会直接失败。Android 也不允许普通应用接管由其他 DPC 管理的既有资料。
 
-### 3. OnboardingFragment
-首次启动引导页，引导用户创建 Work Profile。
+同时，`canUseWorkProfileFeatures()` 使用“人工就绪标记或发现任意其他资料”判断可用，这不等价于当前实例拥有 Profile Owner 或跨资料访问能力。后续应拆分：
 
-**UI 状态**：
-- `NOT_CREATED` - 未创建，显示引导界面
-- `CREATING` - 创建中，显示进度
-- `CREATED` - 已创建，跳转主界面
-- `ERROR` - 创建失败，显示错误信息
+- 未发现工作资料。
+- 发现资料但由其他 DPC 管理。
+- 本应用是工作资料 Profile Owner。
+- 跨资料入口已配置并可访问。
+- 仅存在主资料人工就绪标记。
 
-**用户操作**：
-- 创建安全空间 - 启动 Provisioning 流程
-- 暂时跳过 - 不创建 Profile 继续使用（功能受限）
-- 重试 - 创建失败后重新尝试
+## 前台安全隐藏
 
-## 首次启动流程
+关闭 keepAlive 时：
 
-```
-用户进入 MainActivity
-    ↓
-检测是否首次启动
-    ↓
-检测 Work Profile 是否存在
-    ↓
-[不存在] → 导航到 OnboardingFragment
-    ↓
-用户点击"创建安全空间"
-    ↓
-调用 workProfileManager.createProfile()
-    ↓
-系统弹出授权弹窗
-    ↓
-用户完成授权
-    ↓
-WorkProfileAdminReceiver.onProfileProvisioningComplete()
-    ↓
-保存状态 → 导航到主界面
-```
+1. 先更新用户策略与应用缓存。
+2. 若目标不在前台，立即按策略隐藏。
+3. 若仍在前台，通过 UsageStats 轮询，退出前台后再隐藏。
+4. 用户重新启用 keepAlive 时，轮询会检测策略变化并取消隐藏。
 
-## AndroidManifest 配置
+当前待隐藏集合只存在进程内存中。若进程在等待期间退出，自动化边界又已经记录为完成，待隐藏动作可能丢失。建议持久化 pending hide，或在应用/资料恢复时重新收敛“keepAlive 已关闭但仍可见”的应用。
 
-### 权限声明
-```xml
-<uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
-<uses-permission android:name="android.permission.MANAGE_USERS" />
-<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-```
+## Manifest 与权限
 
-### DeviceAdminReceiver 注册
-```xml
-<receiver
-    android:name=".work.WorkProfileAdminReceiver"
-    android:exported="true"
-    android:permission="android.permission.BIND_DEVICE_ADMIN">
-    <meta-data
-        android:name="android.app.device_admin"
-        android:resource="@xml/device_admin" />
-    <intent-filter>
-        <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-        <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
-    </intent-filter>
-</receiver>
-```
-
-### Device Admin 策略
-位于 `res/xml/device_admin.xml`：
-```xml
-<uses-policies>
-    <force-lock />
-    <wipe-data />
-    <reset-password />
-    <set-global-proxy />
-    <disable-keyguard-features />
-</uses-policies>
-```
-
-## HyperOS 兼容性处理
-
-小米 HyperOS 3.0 可能限制 Work Profile 创建。
-
-**检测方法**：
-```kotlin
-devicePolicyManager.isProvisioningAllowed(
-    DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE
-)
-```
-
-**失败处理**：
-- 检测返回 `false` - 显示明确提示
-- 用户取消授权 - 提供重试选项
-- 创建异常 - 显示详细错误信息和解决方案
-
-**提示内容**：
-```
-创建失败，可能原因：
-1. 设备已存在工作资料
-2. 系统限制（部分厂商定制系统）
-3. 权限不足
-
-您可以尝试：
-• 在系统设置中手动创建工作资料
-• 联系设备厂商了解限制
-```
-
-## Android 版本兼容
-
-### Android 5.0 (API 21) - Android 6.0 (API 23)
-- 基础 Managed Profile 支持
-- 需要用户手动加密
-
-### Android 7.0+ (API 24+)
-- 支持跳过加密：`EXTRA_PROVISIONING_SKIP_ENCRYPTION`
-- `onProfileProvisioningComplete()` 回调可用
-
-### Android 8.0+ (API 26+)
-- 支持跳过用户同意：`EXTRA_PROVISIONING_SKIP_USER_CONSENT`
-
-### Android 12+ (API 31+)
-- Provisioning 流程优化
-- 更严格的权限检查
+- `WorkProfileAdminReceiver` 通过 receiver 上的 `android.permission.BIND_DEVICE_ADMIN` 保护。
+- Manifest 还声明并 suppress 了 `BIND_DEVICE_ADMIN`、`MANAGE_USERS`、`INTERACT_ACROSS_PROFILES` 和 `QUERY_ALL_PACKAGES` 的 lint 检查；lint 通过不代表这些权限已经完成发布合规审计。
+- `device_admin.xml` 声明 force-lock、wipe-data、reset-password、set-global-proxy 和 disable-keyguard-features，正式发布前应删除没有实际使用的策略。
+- 导出的游戏中心代理和 launcher 清理组件仍需签名权限或调用方校验。
+- `removeProfile()` 会调用 `wipeData(0)`，所有入口都必须有不可误触的强确认。
 
 ## 数据存储
 
-使用 SharedPreferences 存储 Profile 状态：
+- `work_profile_prefs`：资料启用、provisioning 和活跃启动会话。
+- `work_profile_main_prefs`：主资料侧 `work_profile_ready` 标记。
+- 应用缓存与策略分别由 `ProfileAppStore`、`ProfileAppPolicyStore` 保存。
 
-**文件名**：`work_profile_prefs`
+这些状态尚未形成事务型单一事实源，卸载、策略变更和自动化跨多个 Store 更新时仍可能出现部分成功。
 
-**字段**：
-- `profile_enabled` (Boolean) - Profile 是否启用
-- `provisioning_complete` (Boolean) - Provisioning 是否完成
-- `provisioning_time` (Long) - 创建时间戳
-- `last_update_time` (Long) - 最后更新时间
+## 验收清单
 
-## 安全建议
-
-1. **权限最小化**：只请求必需的 Device Admin 策略
-2. **状态同步**：及时更新 SharedPreferences 缓存
-3. **错误处理**：提供清晰的错误提示和恢复方案
-4. **日志清理**：生产版本移除敏感日志
-
-## 后续扩展
-
-1. **自动安装应用**：Profile 创建完成后自动安装基础应用
-2. **应用管理**：在 Profile 内安装/卸载应用
-3. **文件隔离**：实现 Profile 内的独立文件空间
-4. **权限管理**：细粒度控制 Profile 内应用权限
-5. **快捷切换**：快速切换主空间和隐私空间
-
-## 测试建议
-
-1. **首次安装测试**：验证引导页流程
-2. **HyperOS 测试**：在小米设备上测试兼容性
-3. **权限拒绝测试**：用户拒绝授权的处理
-4. **多次创建测试**：已存在 Profile 时的提示
-5. **Profile 管理测试**：锁定、解锁、删除功能
+1. Android 8、9、12+ 与目标 HyperOS 的首次创建、取消和失败流程。
+2. 已有其他 DPC 资料时显示真实限制，不承诺可接管。
+3. 主资料不暴露真实入口，工作资料只显示预期伪装入口。
+4. 开机、应用更新、资料暂停/恢复后入口和自动化恢复。
+5. 普通、keepAlive 和系统候选应用的启动、返回与隐藏。
+6. 进程在前台延迟隐藏期间被杀死后的最终收敛。
+7. 安装、替换、卸载事件不会制造幽灵入口或误删缓存。
+8. 所有导出组件、高权限和资料移除路径完成安全测试。

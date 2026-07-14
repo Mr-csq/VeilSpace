@@ -1,102 +1,155 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/ui_background"
-    android:orientation="vertical"
+    android:background="@color/space_background"
     tools:context=".ui.home.HomeFragment">
 
+    <com.system.launcher.tools.ui.common.AnimatedSpaceBackgroundView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
     <LinearLayout
+        android:id="@+id/page_content"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingTop="18dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="12dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="14dp"
+            android:layout_marginEnd="16dp"
+            android:background="@drawable/bg_brand_hero"
+            android:gravity="center_vertical"
+            android:minHeight="132dp"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="18dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="18dp">
 
-            <TextView
-                style="@style/TextAppearance.PrivacySpace.PageTitle"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:text="隐藏空间" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tv_home_subtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:text="仅显示你设定在首页的应用"
-                android:textColor="@color/ui_text_secondary"
-                android:textSize="14sp" />
+                <TextView
+                    style="@style/TextAppearance.PrivacySpace.Eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="VEIL SPACE" />
+
+                <TextView
+                    style="@style/TextAppearance.PrivacySpace.PageTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="7dp"
+                    android:text="隐藏空间"
+                    android:textSize="31sp" />
+
+                <TextView
+                    android:id="@+id/tv_home_subtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="0 个首页应用"
+                    android:textColor="@color/space_text_secondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btn_settings"
+                style="@style/Widget.PrivacySpace.IconButton"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="设置"
+                android:src="@drawable/ic_settings_24"
+                app:tint="@color/space_text_primary" />
+
+            <ImageButton
+                android:id="@+id/btn_add_app"
+                style="@style/Widget.PrivacySpace.IconButton.Primary"
+                android:contentDescription="添加应用"
+                android:src="@drawable/ic_add_24"
+                app:tint="@color/space_on_accent" />
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/btn_settings"
-            style="@style/Widget.PrivacySpace.IconButton"
-            android:layout_marginEnd="8dp"
-            android:contentDescription="设置"
-            android:src="@drawable/ic_settings_24"
-            app:tint="@color/ui_text_secondary" />
-
-        <ImageButton
-            android:id="@+id/btn_add_app"
-            style="@style/Widget.PrivacySpace.IconButton.Primary"
-            android:contentDescription="添加应用"
-            android:src="@drawable/ic_add_24"
-            app:tint="@color/ui_text_primary" />
-    </LinearLayout>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_apps"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingHorizontal="12dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="24dp" />
-
         <LinearLayout
-            android:id="@+id/empty_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:gravity="center"
-            android:orientation="vertical"
-            android:paddingHorizontal="28dp"
-            android:visibility="gone"
-            tools:visibility="visible">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="22dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="8dp">
+
+            <TextView
+                style="@style/TextAppearance.PrivacySpace.SectionTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="我的应用" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="暂无首页应用"
-                android:textColor="@color/ui_text_primary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:text="长按拖动排序"
+                android:textColor="@color/space_text_tertiary"
+                android:textSize="12sp" />
+        </LinearLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_apps"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:overScrollMode="never"
+                android:paddingStart="12dp"
+                android:paddingTop="4dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="28dp" />
+
+            <LinearLayout
+                android:id="@+id/empty_view"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_gravity="center"
+                android:layout_marginHorizontal="28dp"
+                android:background="@drawable/bg_glass_panel"
                 android:gravity="center"
-                android:text="通过添加 APK 或应用管理选择要显示的应用"
-                android:textColor="@color/ui_text_secondary"
-                android:textSize="14sp" />
-        </LinearLayout>
-    </FrameLayout>
-</LinearLayout>
+                android:orientation="vertical"
+                android:padding="28dp"
+                android:visibility="gone"
+                tools:visibility="visible">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="空间还是空的"
+                    android:textColor="@color/space_text_primary"
+                    android:textSize="19sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="点击右上角添加第一个应用"
+                    android:textColor="@color/space_text_secondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </FrameLayout>
+    </LinearLayout>
+</FrameLayout>

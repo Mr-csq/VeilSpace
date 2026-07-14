@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.core.content.ContextCompat
@@ -19,6 +18,9 @@ import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import com.system.launcher.tools.databinding.FragmentAppManagementDetailBinding
+import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpace
+import com.system.launcher.tools.ui.common.showSpaceMessage
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -35,7 +37,7 @@ class AppManagementDetailFragment : Fragment() {
         pendingUninstallApp = null
         viewModel.finalizeUninstall(app) { removed ->
             val message = if (removed) "应用已卸载，记录已标记为未安装" else "卸载未完成，应用仍在隐藏空间中"
-            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            showSpaceMessage(message, error = !removed)
         }
     }
 
@@ -53,18 +55,19 @@ class AppManagementDetailFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupActions()
         observeViewModel()
+        SpaceUi.reveal(binding.pageContent)
     }
 
     private fun setupActions() {
         binding.btnBack.setOnClickListener { findNavController().popBackStack() }
         binding.btnRefreshStatus.setOnClickListener {
-            Toast.makeText(requireContext(), "正在刷新应用状态", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("正在刷新应用状态")
             viewModel.refreshAll()
         }
         binding.btnRefreshIcon.setOnClickListener {
             val app = currentApp ?: return@setOnClickListener
             viewModel.refreshIcon(app)
-            Toast.makeText(requireContext(), "正在刷新图标", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("正在刷新图标")
         }
         binding.btnUninstallApp.setOnClickListener {
             currentApp?.let { confirmUninstall(it) }
@@ -72,6 +75,11 @@ class AppManagementDetailFragment : Fragment() {
         binding.btnRemoveRecord.setOnClickListener {
             currentApp?.let { confirmRemoveRecord(it) }
         }
+        SpaceUi.attachPressScale(binding.btnBack, 0.9f)
+        SpaceUi.attachPressScale(binding.btnRefreshStatus, 0.9f)
+        SpaceUi.attachPressScale(binding.btnRefreshIcon, 0.985f)
+        SpaceUi.attachPressScale(binding.btnUninstallApp, 0.985f)
+        SpaceUi.attachPressScale(binding.btnRemoveRecord, 0.985f)
     }
 
     private fun observeViewModel() {
@@ -79,7 +87,7 @@ class AppManagementDetailFragment : Fragment() {
             val app = apps.firstOrNull { it.packageName == packageName }
             if (app == null) {
                 if (apps.isNotEmpty()) {
-                    Toast.makeText(requireContext(), "应用记录已不存在", Toast.LENGTH_SHORT).show()
+                    showSpaceMessage("应用记录已不存在", error = true)
                     findNavController().popBackStack()
                 }
                 return@observe
@@ -227,7 +235,7 @@ class AppManagementDetailFragment : Fragment() {
             .setMessage("确定要从隐藏空间中卸载「${app.appName}」吗？记录会保留，方便你确认状态后再移除。")
             .setPositiveButton("卸载") { _, _ -> uninstallApp(app) }
             .setNegativeButton("取消", null)
-            .show()
+            .showSpace()
     }
 
     private fun uninstallApp(app: AppInfo) {
@@ -236,10 +244,10 @@ class AppManagementDetailFragment : Fragment() {
             uninstallLauncher.launch(viewModel.createUninstallIntent(app))
         } catch (e: ActivityNotFoundException) {
             pendingUninstallApp = null
-            Toast.makeText(requireContext(), "未找到卸载入口", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("未找到卸载入口", error = true)
         } catch (e: SecurityException) {
             pendingUninstallApp = null
-            Toast.makeText(requireContext(), "无法卸载，请检查工作资料权限", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法卸载，请检查工作资料权限", long = true, error = true)
         }
     }
 
@@ -249,11 +257,11 @@ class AppManagementDetailFragment : Fragment() {
             .setMessage("这只会移除隐藏空间中的记录和图标缓存，不会卸载应用。")
             .setPositiveButton("移除") { _, _ ->
                 viewModel.removeRecord(app)
-                Toast.makeText(requireContext(), "记录已移除", Toast.LENGTH_SHORT).show()
+                showSpaceMessage("记录已移除")
                 findNavController().popBackStack()
             }
             .setNegativeButton("取消", null)
-            .show()
+            .showSpace()
     }
 
     override fun onDestroyView() {

@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/ui_background"
+    android:background="@color/space_background"
     tools:context=".ui.files.FilesFragment">
 
+    <com.system.launcher.tools.ui.common.AnimatedSpaceBackgroundView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no" />
+
     <LinearLayout
+        android:id="@+id/page_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical">
@@ -15,14 +21,22 @@
         <LinearLayout
             android:id="@+id/normal_toolbar"
             android:layout_width="match_parent"
-            android:layout_height="96dp"
-            android:background="@color/ui_background"
+            android:layout_height="wrap_content"
             android:gravity="center_vertical"
+            android:minHeight="92dp"
             android:orientation="horizontal"
-            android:paddingStart="20dp"
-            android:paddingTop="18dp"
+            android:paddingStart="12dp"
+            android:paddingTop="14dp"
             android:paddingEnd="16dp"
-            android:paddingBottom="12dp">
+            android:paddingBottom="10dp">
+
+            <ImageButton
+                android:id="@+id/btn_file_back"
+                style="@style/Widget.PrivacySpace.IconButton"
+                android:layout_marginEnd="10dp"
+                android:contentDescription="返回"
+                android:src="@drawable/ic_arrow_back_24"
+                app:tint="@color/space_text_primary" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -31,18 +45,25 @@
                 android:orientation="vertical">
 
                 <TextView
+                    style="@style/TextAppearance.PrivacySpace.Eyebrow"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PRIVATE VAULT" />
+
+                <TextView
                     style="@style/TextAppearance.PrivacySpace.PageTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
                     android:text="@string/files_title" />
 
                 <TextView
                     android:id="@+id/tv_file_summary"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textColor="@color/ui_text_secondary"
-                    android:textSize="14sp"
+                    android:layout_marginTop="3dp"
+                    android:textColor="@color/space_text_secondary"
+                    android:textSize="13sp"
                     tools:text="12 个项目 · 328 MB" />
             </LinearLayout>
 
@@ -51,20 +72,20 @@
                 style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="刷新"
                 android:src="@drawable/ic_refresh_24"
-                app:tint="@color/ui_text_secondary" />
+                app:tint="@color/space_primary" />
         </LinearLayout>
 
         <LinearLayout
             android:id="@+id/selection_toolbar"
             android:layout_width="match_parent"
             android:layout_height="80dp"
-            android:background="@color/ui_background"
+            android:layout_marginStart="12dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_brand_hero"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingTop="10dp"
-            android:paddingEnd="12dp"
-            android:paddingBottom="10dp"
+            android:paddingHorizontal="10dp"
             android:visibility="gone"
             tools:visibility="visible">
 
@@ -73,16 +94,16 @@
                 style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="取消选择"
                 android:src="@drawable/ic_close_24"
-                app:tint="@color/ui_text_secondary" />
+                app:tint="@color/space_text_primary" />
 
             <TextView
                 android:id="@+id/tv_selection_count"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
+                android:layout_marginStart="10dp"
                 android:layout_weight="1"
-                android:textColor="@color/ui_text_primary"
-                android:textSize="20sp"
+                android:textColor="@color/space_text_primary"
+                android:textSize="19sp"
                 android:textStyle="bold"
                 tools:text="已选择 3 项" />
 
@@ -92,29 +113,49 @@
                 android:layout_marginEnd="8dp"
                 android:contentDescription="全选"
                 android:src="@drawable/ic_select_all_24"
-                app:tint="@color/ui_text_secondary" />
+                app:tint="@color/space_primary" />
 
             <ImageButton
                 android:id="@+id/btn_delete_selected"
                 style="@style/Widget.PrivacySpace.IconButton"
                 android:contentDescription="删除"
                 android:src="@drawable/ic_delete_24"
-                app:tint="@color/ui_error" />
+                app:tint="@color/space_error" />
         </LinearLayout>
 
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tab_layout"
+        <LinearLayout
+            android:id="@+id/file_filter_group"
             android:layout_width="match_parent"
-            android:layout_height="46dp"
+            android:layout_height="48dp"
             android:layout_marginStart="16dp"
+            android:layout_marginTop="6dp"
             android:layout_marginEnd="16dp"
-            android:background="@drawable/bg_file_chip"
-            app:tabBackground="@drawable/bg_file_chip"
-            app:tabIndicatorHeight="0dp"
-            app:tabMode="fixed"
-            app:tabRippleColor="@android:color/transparent"
-            app:tabSelectedTextColor="@color/white"
-            app:tabTextColor="@color/ui_text_secondary" />
+            android:background="@drawable/bg_segment_container"
+            android:clipToOutline="true"
+            android:orientation="horizontal"
+            android:padding="3dp">
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_images"
+                style="@style/Widget.PrivacySpace.SegmentItem"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="图片" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_videos"
+                style="@style/Widget.PrivacySpace.SegmentItem"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="视频" />
+
+            <androidx.appcompat.widget.AppCompatButton
+                android:id="@+id/btn_all_files"
+                style="@style/Widget.PrivacySpace.SegmentItem"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:text="全部" />
+        </LinearLayout>
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -126,19 +167,22 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
+                android:overScrollMode="never"
                 android:paddingStart="12dp"
-                android:paddingTop="14dp"
+                android:paddingTop="12dp"
                 android:paddingEnd="12dp"
-                android:paddingBottom="24dp" />
+                android:paddingBottom="28dp" />
 
             <LinearLayout
                 android:id="@+id/empty_view"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
+                android:layout_marginHorizontal="28dp"
+                android:background="@drawable/bg_glass_panel"
                 android:gravity="center"
                 android:orientation="vertical"
-                android:padding="24dp"
+                android:padding="28dp"
                 android:visibility="gone"
                 tools:visibility="visible">
 
@@ -147,8 +191,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="暂无文件"
-                    android:textColor="@color/ui_text_primary"
-                    android:textSize="18sp"
+                    android:textColor="@color/space_text_primary"
+                    android:textSize="19sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -157,17 +201,18 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:text=""
-                    android:textColor="@color/ui_text_secondary"
+                    android:textColor="@color/space_text_secondary"
                     android:textSize="13sp" />
             </LinearLayout>
 
-            <ProgressBar
+            <com.google.android.material.progressindicator.CircularProgressIndicator
                 android:id="@+id/progress_bar"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:layout_gravity="center"
-                android:visibility="gone" />
+                android:visibility="gone"
+                app:indicatorColor="@color/space_primary"
+                app:trackColor="@color/space_surface_soft" />
         </FrameLayout>
     </LinearLayout>
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>

@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.Fragment
@@ -20,6 +19,9 @@ import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.databinding.FragmentHomeBinding
 import com.system.launcher.tools.ui.common.MaterialActionDialogs
+import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpace
+import com.system.launcher.tools.ui.common.showSpaceMessage
 import com.system.launcher.tools.work.ProfilePackageMonitor
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -45,7 +47,7 @@ class HomeFragment : Fragment() {
             launchApkInstaller(uri)
         } else {
             pendingApkUri = null
-            Toast.makeText(requireContext(), "请允许本应用安装未知来源应用后重试", Toast.LENGTH_LONG).show()
+            showSpaceMessage("请允许本应用安装未知来源应用后重试", long = true, error = true)
         }
     }
 
@@ -59,7 +61,7 @@ class HomeFragment : Fragment() {
         if (uris.isEmpty()) return@registerForActivityResult
         viewModel.deleteDocuments(uris) { deleted, failed ->
             val message = if (failed == 0) "已删除 $deleted 个文件" else "已删除 $deleted 个文件，$failed 个删除失败"
-            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            showSpaceMessage(message, error = failed > 0)
         }
     }
 
@@ -74,6 +76,7 @@ class HomeFragment : Fragment() {
         setupRecyclerView()
         setupActions()
         observeViewModel()
+        SpaceUi.reveal(binding.pageContent)
     }
 
     override fun onResume() {
@@ -118,15 +121,16 @@ class HomeFragment : Fragment() {
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
                 if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
+                    viewHolder?.itemView?.let(SpaceUi::haptic)
                     viewHolder?.itemView?.translationZ = 12f
-                    viewHolder?.itemView?.animate()?.scaleX(1.06f)?.scaleY(1.06f)?.setDuration(100)?.start()
+                    viewHolder?.itemView?.animate()?.scaleX(1.055f)?.scaleY(1.055f)?.setDuration(140)?.start()
                 }
             }
 
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
                 viewHolder.itemView.translationZ = 0f
-                viewHolder.itemView.animate().scaleX(1f).scaleY(1f).setDuration(100).start()
+                viewHolder.itemView.animate().scaleX(1f).scaleY(1f).setDuration(240).start()
                 if (!dragChanged) return
                 dragChanged = false
                 viewModel.reorderHomeApps(appGridAdapter.finishDragAndGetPackageOrder())
@@ -136,6 +140,7 @@ class HomeFragment : Fragment() {
         binding.rvApps.apply {
             layoutManager = GridLayoutManager(requireContext(), 4)
             adapter = appGridAdapter
+            SpaceUi.configureList(this)
         }
         itemTouchHelper.attachToRecyclerView(binding.rvApps)
     }
@@ -143,6 +148,8 @@ class HomeFragment : Fragment() {
     private fun setupActions() {
         binding.btnAddApp.setOnClickListener { openApkPickerWithValidation() }
         binding.btnSettings.setOnClickListener { showSettingsDialog() }
+        SpaceUi.attachPressScale(binding.btnAddApp, 0.9f)
+        SpaceUi.attachPressScale(binding.btnSettings, 0.9f)
     }
 
     private fun showSettingsDialog() {
@@ -161,34 +168,34 @@ class HomeFragment : Fragment() {
         )
     }
     private fun repairAppIcons() {
-        Toast.makeText(requireContext(), "正在修复应用图标", Toast.LENGTH_SHORT).show()
+        showSpaceMessage("正在修复应用图标")
         viewModel.repairHomeAppIcons { repaired ->
             val message = if (repaired) "应用图标已更新" else "没有可修复的应用图标"
-            Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            showSpaceMessage(message)
         }
     }
 
     private fun tidyDesktopResidualIcons() {
-        Toast.makeText(requireContext(), "正在整理桌面残留图标", Toast.LENGTH_SHORT).show()
+        showSpaceMessage("正在整理桌面残留图标")
         viewModel.tidyDesktopResidualIcons { hiddenCount ->
-            Toast.makeText(requireContext(), "已处理 $hiddenCount 个隐藏空间应用", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("已处理 $hiddenCount 个隐藏空间应用")
         }
     }
 
     private fun launchUnknownAppSourcesSettings() {
         val intent = viewModel.createUnknownAppSourcesIntent()
         if (intent == null) {
-            Toast.makeText(requireContext(), "当前系统不支持从此入口授权未知来源", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("当前系统不支持从此入口授权未知来源", error = true)
         } else {
             launchExternalIntent(intent)
         }
     }
 
     private fun repairInstallEnvironment() {
-        Toast.makeText(requireContext(), "正在修复安装环境", Toast.LENGTH_SHORT).show()
+        showSpaceMessage("正在修复安装环境")
         viewModel.repairProfileInstallEnvironment { success ->
             val message = if (success) "安装环境已修复" else "修复失败，请确认当前在工作资料入口"
-            Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
+            showSpaceMessage(message, long = true, error = !success)
             if (success) viewModel.loadProfileApps()
         }
     }
@@ -226,13 +233,13 @@ class HomeFragment : Fragment() {
             .setMessage(reason)
             .setPositiveButton("应用管理") { _, _ -> findNavController().navigate(R.id.action_home_to_app_management) }
             .setNegativeButton("取消", null)
-            .show()
+            .showSpace()
     }
 
     private fun openApkPickerWithValidation() {
         val validationError = viewModel.validateInstallEntry()
         if (validationError != null) {
-            Toast.makeText(requireContext(), validationError, Toast.LENGTH_SHORT).show()
+            showSpaceMessage(validationError, error = true)
             return
         }
         openApkPicker()
@@ -242,9 +249,9 @@ class HomeFragment : Fragment() {
         try {
             apkPickerLauncher.launch("application/vnd.android.package-archive")
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), "无法打开文件选择器", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法打开文件选择器", error = true)
         } catch (e: SecurityException) {
-            Toast.makeText(requireContext(), "无法打开文件选择器，请检查工作资料权限", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法打开文件选择器，请检查工作资料权限", long = true, error = true)
         }
     }
 
@@ -273,7 +280,7 @@ class HomeFragment : Fragment() {
                     .setPositiveButton("仍然尝试") { _, _ -> launchSelectedApkInstall(uri) }
                     .setNegativeButton("取消") { _, _ -> viewModel.clearPendingApkInstallCandidate() }
             }
-            builder.show()
+            builder.showSpace()
             return
         }
         launchSelectedApkInstall(uri)
@@ -286,7 +293,7 @@ class HomeFragment : Fragment() {
         }
         val settingsIntent = viewModel.createUnknownAppSourcesIntent()
         if (settingsIntent == null) {
-            Toast.makeText(requireContext(), "当前系统不支持从此入口安装 APK", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("当前系统不支持从此入口安装 APK", error = true)
         } else {
             unknownSourcesLauncher.launch(settingsIntent)
         }
@@ -301,9 +308,9 @@ class HomeFragment : Fragment() {
         try {
             externalActivityLauncher.launch(intent)
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), "未找到可处理该操作的应用", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("未找到可处理该操作的应用", error = true)
         } catch (e: SecurityException) {
-            Toast.makeText(requireContext(), "启动失败，请检查工作资料权限", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("启动失败，请检查工作资料权限", error = true)
         }
     }
 
@@ -311,7 +318,7 @@ class HomeFragment : Fragment() {
         try {
             deleteDocumentsLauncher.launch(viewModel.createDeleteDocumentsIntent())
         } catch (e: ActivityNotFoundException) {
-            Toast.makeText(requireContext(), "无法打开文件选择器", Toast.LENGTH_SHORT).show()
+            showSpaceMessage("无法打开文件选择器", error = true)
         }
     }
 

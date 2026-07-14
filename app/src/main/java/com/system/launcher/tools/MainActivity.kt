@@ -2,6 +2,8 @@ package com.system.launcher.tools
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.navigation.fragment.NavHostFragment
 import com.system.launcher.tools.databinding.ActivityMainBinding
 import com.system.launcher.tools.work.WorkProfileManager
@@ -18,6 +20,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = ContextCompat.getColor(this, R.color.space_background_deep)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
 
         if (workProfileManager.isProfileOwner()) {
             workProfileManager.configureCrossProfileEntry()

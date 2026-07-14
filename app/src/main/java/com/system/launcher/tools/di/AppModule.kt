@@ -1,6 +1,8 @@
 package com.system.launcher.tools.di
 
 import android.content.Context
+import com.system.launcher.tools.automation.AutomationConfigStore
+import com.system.launcher.tools.automation.AutomationScheduleCalculator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -36,4 +38,16 @@ object AppModule {
     @Provides
     @MainDispatcher
     fun provideMainDispatcher(): CoroutineDispatcher = Dispatchers.Main
+
+    @Provides
+    @Singleton
+    fun provideAutomationConfigStore(@ApplicationContext context: Context): AutomationConfigStore {
+        return AutomationConfigStore(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAutomationScheduleCalculator(): AutomationScheduleCalculator {
+        return AutomationScheduleCalculator()
+    }
 }

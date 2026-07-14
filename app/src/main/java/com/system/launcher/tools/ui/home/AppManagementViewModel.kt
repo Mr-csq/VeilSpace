@@ -8,6 +8,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.system.launcher.tools.R
+import com.system.launcher.tools.automation.ProfileAppKeepAliveController
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
@@ -28,6 +29,7 @@ import kotlinx.coroutines.withContext
 class AppManagementViewModel @Inject constructor(
     private val appRepository: AppRepository,
     private val workProfileManager: WorkProfileManager,
+    private val keepAliveController: ProfileAppKeepAliveController,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -87,24 +89,11 @@ class AppManagementViewModel @Inject constructor(
     fun setKeepAlive(app: AppInfo, keepAlive: Boolean) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                val policy = ProfileAppPolicyStore.resolvePolicy(context, app.packageName)
-                if (policy.shouldNeverAutoHide) {
-                    ProfileAppPolicyStore.setKeepAliveApp(context, app.packageName, false)
-                    ProfileAppStore.setKeepAlive(context, app.packageName, false)
-                    workProfileManager.unhideAppInProfile(app.packageName)
-                } else if (!policy.staticPolicy.userKeepAliveAllowed) {
-                    ProfileAppPolicyStore.setKeepAliveApp(context, app.packageName, false)
-                    ProfileAppStore.setKeepAlive(context, app.packageName, false)
-                    workProfileManager.hideAppInProfileIfAllowed(app.packageName, "managementKeepAlivePolicyLocked")
-                } else {
-                    ProfileAppPolicyStore.setKeepAliveApp(context, app.packageName, keepAlive)
-                    ProfileAppStore.setKeepAlive(context, app.packageName, keepAlive)
-                    if (keepAlive) {
-                        workProfileManager.unhideAppInProfile(app.packageName)
-                    } else if (app.installVerification == InstallVerification.CONFIRMED_INSTALLED) {
-                        workProfileManager.hideAppInProfileIfAllowed(app.packageName, "managementKeepAliveDisabled")
-                    }
-                }
+                keepAliveController.setKeepAlive(
+                    packageName = app.packageName,
+                    enabled = keepAlive,
+                    reason = "manualAppManagement"
+                )
                 ProfileAppStore.loadApps(context)
             }
             _apps.value = result

@@ -18,6 +18,7 @@ import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import com.system.launcher.tools.databinding.ItemAppManagementBinding
+import com.system.launcher.tools.ui.common.SpaceUi
 
 enum class AppManagementMode {
     ALL_APPS,
@@ -50,6 +51,10 @@ class AppManagementAdapter(
     }
 
     inner class ViewHolder(private val binding: ItemAppManagementBinding) : RecyclerView.ViewHolder(binding.root) {
+        init {
+            SpaceUi.attachPressScale(binding.root, 0.985f)
+        }
+
         fun bind(app: AppInfo) {
             binding.apply {
                 val fallback = ContextCompat.getDrawable(root.context, android.R.drawable.sym_def_app_icon)
