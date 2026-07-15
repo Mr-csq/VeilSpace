@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="media_transfer_channel_name">主空间文件传输</string>
+    <string name="media_transfer_channel_description">复制或移动图片和视频到主空间</string>
+    <string name="media_transfer_service_title">正在传输到主空间</string>
+    <string name="media_transfer_service_summary">请保持工作资料开启，完成后此通知会自动关闭</string>
+    <string name="files_transfer_to_personal">传输到主空间</string>
+    <string name="files_transfer_to_personal_title">传输 %1$d 个媒体文件</string>
+    <string name="files_transfer_copy_action">复制到主空间 · 保留源文件</string>
+    <string name="files_transfer_move_action">移动到主空间 · 成功后删除源文件</string>
+    <string name="files_move_to_personal">移动到主空间</string>
+    <string name="files_move_to_personal_confirm">主空间确认写入成功后，系统只会删除工作空间中已复制成功的源文件；复制失败的项目会原样保留。\n\n确定移动选中的 %1$d 个媒体文件吗？</string>
+    <string name="files_move_action">移动</string>
+    <string name="files_transfer_cancel">取消</string>
+    <string name="files_move_complete">已移动 %1$d 个项目到主空间</string>
+    <string name="files_move_partial">已移动 %1$d 个；%2$d 个已复制但源文件保留；%3$d 个复制失败</string>
+    <string name="files_move_sources_retained">已复制 %1$d 个项目，但源文件未删除</string>
+    <string name="files_move_failed_sources_retained">移动失败，工作空间源文件均已保留</string>
+    <string name="media_import_eyebrow">PERSONAL SPACE</string>
+    <string name="media_import_copying_title">正在复制到主空间</string>
+    <string name="media_import_complete_title">复制完成</string>
+    <string name="media_import_partial_title">部分文件未能复制</string>
+    <string name="media_import_failed_title">复制失败</string>
+    <string name="media_import_unsupported_title">当前系统不支持</string>
+    <string name="media_import_preparing">正在准备媒体文件…</string>
+    <string name="media_import_progress">已处理 %1$d/%2$d · 成功 %3$d</string>
+    <string name="media_import_complete_summary">已复制 %1$d 个媒体文件</string>
+    <string name="media_import_partial_summary">成功 %1$d 个，失败 %2$d 个</string>
+    <string name="media_import_failed_summary">%1$d 个媒体文件均未复制</string>
+    <string name="media_import_unsupported_summary">复制到主空间需要 Android 10 或更高版本</string>
+    <string name="media_import_invalid_summary">没有收到可复制的媒体文件</string>
+    <string name="media_import_destination">图片：Pictures/VeilSpace · 视频：Movies/VeilSpace</string>
+    <string name="media_import_failed_files">未复制：%1$s</string>
+    <string name="media_import_more_failures">等 %1$d 个文件</string>
+    <string name="media_import_done">完成</string>
+    <string name="media_move_copying_title">正在复制移动内容</string>
+    <string name="media_move_copy_complete_title">已复制到主空间</string>
+    <string name="media_move_copy_complete_summary">%1$d 个项目已安全写入；返回工作空间后将删除对应源文件</string>
+    <string name="media_move_copy_partial_title">部分内容已复制</string>
+    <string name="media_move_copy_partial_summary">成功复制 %1$d 个，失败 %2$d 个；只会删除成功项的源文件</string>
+    <string name="media_move_return">返回工作空间</string>
+</resources>

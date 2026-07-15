@@ -69,7 +69,7 @@ class AppManagementAdapter(
                 ivTrailing.setImageResource(R.drawable.ic_chevron_right_24)
                 ivTrailing.contentDescription = "进入详情"
                 ivTrailing.setOnTouchListener(null)
-                root.setOnClickListener { onAppClick(app) }
+                SpaceUi.setSafeClickListener(root) { onAppClick(app) }
             }
         }
 

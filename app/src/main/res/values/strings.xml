@@ -21,11 +21,11 @@
 
     <!-- Workday automation -->
     <string name="automation_back">返回</string>
-    <string name="automation_eyebrow">SCHEDULE POLICY</string>
-    <string name="automation_title">工作日自动化</string>
-    <string name="automation_master_switch">功能总开关</string>
-    <string name="automation_master_summary">同一组规则作用于全部所选应用</string>
-    <string name="automation_enable_description">启用工作日自动化</string>
+    <string name="automation_eyebrow">WORK MODE</string>
+    <string name="automation_title">工作模式</string>
+    <string name="automation_master_switch">工作模式开关</string>
+    <string name="automation_master_summary">工作时段内为所选应用启用后台运行与通知</string>
+    <string name="automation_enable_description">启用工作模式</string>
     <string name="automation_current_state">当前状态</string>
     <string name="automation_next_execution">下一次执行</string>
     <string name="automation_boundary_time">边界时间</string>
@@ -47,7 +47,7 @@
     <string name="automation_exact_alarm">精确闹钟</string>
     <string name="automation_exact_alarm_permission">授权精确闹钟</string>
     <string name="automation_last_result">最近执行结果</string>
-    <string name="automation_save">保存并重新安排</string>
+    <string name="automation_save">保存工作模式</string>
     <string name="automation_keep_alive_explanation">允许后台运行是 VeilSpace 的 keepAlive/自动隐藏策略，不是 MIUI 电池无限制或自启动权限。</string>
     <string name="automation_workday_metadata">数据年份 %1$s · 更新 %2$s · %3$s\n%4$s\n数据缺失时不会猜测法定工作日，请改用自定义星期。</string>
 

@@ -56,7 +56,9 @@ work/             Profile Owner、应用启动/隐藏和桌面清理
 
 本轮已修复 API 26 直接初始化 API 28 `CrossProfileApps` 的 lint/运行风险。
 
-仍存在的核心问题：Onboarding 仍把“发现其他工作资料”表述为可授权管理，但当前代码和 Android DPC 模型都不能接管其他管理者的资料；人工 `work_profile_ready` 标记也可能让 UI 误判功能可用。详见 [Work Profile 模块](work_profile_module.md)。
+2026-07-14 已重新整理创建/连接流程：移除人工 `work_profile_ready` 授权判断，明确区分当前 Owner、已连接的 VeilSpace 资料、其他 DPC 资料和未创建四种状态。非 Owner 跳转失败时只能进入引导页，不能在主资料展示真实首页。其他 DPC 资料只提示冲突，不再承诺可以接管。详见 [Work Profile 模块](work_profile_module.md)。
+
+同时，真实 `MainActivity` 已改为非导出；跨资料 alias、游戏中心代理和 launcher 清理代理使用签名级权限。应用备份和设备迁移提取已关闭。
 
 ## 4. 应用发现、状态和策略
 
@@ -99,10 +101,15 @@ work/             Profile Owner、应用启动/隐藏和桌面清理
 - 图片网格、视频和普通文件列表。
 - 图片全屏左右滑动，视频交给系统播放器。
 - 按日期分组、多选、全选和批量删除。
+- 将最多 200 个选中的图片或视频复制或移动到主空间；图片写入 `Pictures/VeilSpace`，视频写入 `Movies/VeilSpace`。
 - Android 11+ MediaStore 删除确认。
 - 媒体权限、空状态和删除结果反馈。
 
-本轮主要是视觉和动效重做，扫描与删除领域逻辑没有形成新的自动化测试。后续重点仍是排序筛选、详情、重命名/移动、回收站和大目录性能。
+HyperOS 3 的 `CrossProfileApps.startActivity(Intent, ...)` 会在持有 WindowManager 锁时拒绝 ClipData URI 权限检查，系统分享选择器又会按 IT 策略禁止工作资料向个人应用分享。当前传输因此不再把 URI 放入跨资料 Intent：工作资料独立进程中的前台数据服务持有源文件，通过 Binder 可靠管道逐项输出；主资料接收 Activity 只携带元数据和受控 Binder 回调启动。主资料对流入和流出分别计算 SHA-256 并核对字节数，校验通过后才发布 `MediaStore` pending 条目，失败时清理未完成目标；重名自动追加序号且不会覆盖已有文件。复制始终保留源文件。移动会持久化待处理清单，主资料通过受控 `PendingIntent` 回传成功索引，工作资料只删除成功项；删除需要系统授权时复用现有 MediaStore 确认，取消或失败时源文件保留。当前首版只支持 Android 10+。
+
+该链路仍需在目标 HyperOS 真机验证图片、长视频、混合批次、重名、部分失败、工作资料暂停以及接收中切到后台等场景；日志应确认 `:media_transfer_source` 独立进程在主进程被系统终止后继续输出，并出现 `Streamed media source` 与 `Imported media`。
+
+跨资料媒体新增纯 JVM 测试覆盖文件名清理、截断、重名和移动结果规则；跨资料 URI grant、结果回传与 MediaStore 写入/删除仍需真机测试。扫描与普通删除领域逻辑尚未形成新的自动化测试。
 
 ## 7. 工作日自动化
 
@@ -128,7 +135,7 @@ work/             Profile Owner、应用启动/隐藏和桌面清理
 
 ### 测试与剩余边界
 
-已有 11 个 JVM 测试覆盖节假日、调休、跨午夜、下一边界、非法配置、幂等、revision 和手动覆盖语义。
+已有 11 个 JVM 测试覆盖节假日、调休、跨午夜、下一边界、非法配置、幂等、revision 和手动覆盖语义；另有 4 个测试覆盖 Work Profile 四态连接决策，3 个覆盖跨资料目标选择，4 个覆盖媒体文件名规则，4 个覆盖安全移动结果规则。
 
 尚未覆盖 Coordinator、SharedPreferences 迁移、AlarmManager、DPM 通知权限、receiver 恢复和 Profile Owner 真机流程。当前前台待隐藏集合只在内存中，进程退出可能导致结束边界已完成但应用没有最终隐藏。
 
@@ -176,19 +183,19 @@ work/             Profile Owner、应用启动/隐藏和桌面清理
 
 - `assembleDebug`：成功，增量构建 55 秒。
 - APK：`app/build/outputs/apk/debug/app-debug.apk`。
-- `testDebugUnitTest`：11 个测试，0 失败、0 错误、0 跳过。
-- `lintDebug`：成功，0 个错误、191 个警告。
+- `testDebugUnitTest`：26 个测试，0 失败、0 错误、0 跳过。
+- `lintDebug`：成功，0 个错误、195 个警告。
 - `git diff --check`：通过；仅提示 Git 将 LF 转为 CRLF。
 
-lint 通过不代表全部问题已经修复：Manifest 的受保护权限和 `QUERY_ALL_PACKAGES` 使用了 `tools:ignore`；`DisguiseActivity.onBackPressed()` 仍使用 `@SuppressLint("MissingSuperCall")`。剩余警告主要为：
+lint 通过不代表全部问题已经修复：Manifest 的部分受保护权限和 `QUERY_ALL_PACKAGES` 使用了 `tools:ignore`；`DisguiseActivity.onBackPressed()` 仍使用 `@SuppressLint("MissingSuperCall")`。剩余警告主要为：
 
 - HardcodedText：64。
 - UnusedResources：48。
-- SetTextI18n：19。
+- SetTextI18n：15。
 - ObsoleteSdkInt：18。
 - Overdraw：9。
 - GradleDependency：5。
-- 无障碍、静态引用、导出 receiver、RTL 等其他警告：28。
+- 无障碍、静态引用、RTL 等其他警告：26。
 
 构建还提示 Gradle 9 不兼容的 deprecated feature，以及本机 Android SDK XML 工具版本不一致。
 
@@ -196,9 +203,9 @@ lint 通过不代表全部问题已经修复：Manifest 的受保护权限和 `Q
 
 ### P0：正确性与安全
 
-1. 修正 Onboarding 状态模型，不再承诺接管既有 DPC 资料。
+1. 在真机验证非导出首页、签名级跨资料 alias 和 provisioning 返回后的自动重连。
 2. 持久化前台延迟隐藏，确保进程死亡后最终收敛。
-3. 审计受保护权限、`QUERY_ALL_PACKAGES`、Device Admin 策略和导出代理组件。
+3. 审计普通应用实际无法获得的系统权限和未使用的 Device Admin 策略；应用商店合规暂不作为自用项目阻断项。
 4. 修复自动化授权往返丢失草稿，以及异步保存回调访问已销毁 View 的风险。
 
 ### P1：测试与架构
@@ -210,7 +217,7 @@ lint 通过不代表全部问题已经修复：Manifest 的受保护权限和 `Q
 
 ### P2：质量与体验
 
-1. 清理 191 个 lint 警告，先处理硬编码文本、未使用资源和无障碍。
+1. 清理 195 个 lint 警告，先处理硬编码文本、未使用资源和无障碍。
 2. 优化动态背景的分配、生命周期与减少动态效果支持。
 3. 自动化增加执行历史、本地通知、立即试运行和独立的“管理通知权限”开关。
 4. 首页搜索/分组/批量管理；文件排序筛选、详情、移动和回收站。

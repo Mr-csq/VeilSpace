@@ -1,8 +1,9 @@
 package com.system.launcher.tools
 
+import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.fragment.NavHostFragment
 import com.system.launcher.tools.databinding.ActivityMainBinding
@@ -20,8 +21,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = android.graphics.Color.TRANSPARENT
-        window.navigationBarColor = ContextCompat.getColor(this, R.color.space_background_deep)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
@@ -47,7 +53,9 @@ class MainActivity : AppCompatActivity() {
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
-        if (!workProfileManager.canUseWorkProfileFeatures()) {
+        // A personal-profile instance reaches this point only when redirecting to
+        // a VeilSpace-managed profile failed. Never expose the real home locally.
+        if (!workProfileManager.isProfileOwner()) {
             navController.navigate(R.id.onboardingFragment)
         }
     }

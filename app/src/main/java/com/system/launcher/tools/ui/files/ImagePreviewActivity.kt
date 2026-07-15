@@ -39,7 +39,7 @@ class ImagePreviewActivity : AppCompatActivity() {
         binding.rvPreview.scrollToPosition(startIndex)
         updateCounter(startIndex)
 
-        binding.btnClose.setOnClickListener { finish() }
+        SpaceUi.setSafeClickListener(binding.btnClose) { finish() }
         SpaceUi.attachPressScale(binding.btnClose, 0.9f)
         SpaceUi.reveal(binding.root)
         val gestureDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {

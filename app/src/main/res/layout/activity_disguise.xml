@@ -16,6 +16,8 @@
     <com.system.launcher.tools.ui.disguise.GradientStatusBarView
         android:id="@+id/status_bar_gradient"
         android:layout_width="match_parent"
-        android:layout_height="0dp" />
+        android:layout_height="0dp"
+        android:clickable="false"
+        android:importantForAccessibility="no" />
 
 </com.system.launcher.tools.ui.disguise.TripleTapHotZoneLayout>

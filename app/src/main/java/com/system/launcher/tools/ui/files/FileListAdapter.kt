@@ -44,15 +44,41 @@ class FileListAdapter(
         }
     }
 
-    fun submitFiles(files: List<FileItem>) {
-        submitList(FileSectionItem.fromFiles(files))
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(PAYLOAD_SELECTION)) {
+            when (val item = getItem(position)) {
+                is FileSectionItem.DateHeader -> (holder as DateHeaderViewHolder).bindSelection()
+                is FileSectionItem.FileRow -> (holder as FileViewHolder).bindSelection(item.item)
+            }
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    fun submitFiles(files: List<FileItem>, onCommitted: () -> Unit = {}) {
+        submitList(FileSectionItem.fromFiles(files), onCommitted)
     }
 
     fun setSelectionState(paths: Set<String>, enabled: Boolean) {
+        if (selectionMode == enabled && selectedPaths == paths) return
+        val selectionModeChanged = selectionMode != enabled
+        val changedPaths = (selectedPaths - paths) + (paths - selectedPaths)
         selectedPaths.clear()
         selectedPaths.addAll(paths)
         selectionMode = enabled
-        notifyDataSetChanged()
+        if (selectionModeChanged) {
+            notifyItemRangeChanged(0, itemCount, PAYLOAD_SELECTION)
+        } else if (changedPaths.isNotEmpty()) {
+            currentList.forEachIndexed { index, item ->
+                if (item is FileSectionItem.FileRow && item.item.path in changedPaths) {
+                    notifyItemChanged(index, PAYLOAD_SELECTION)
+                }
+            }
+        }
     }
 
     inner class DateHeaderViewHolder(
@@ -64,8 +90,12 @@ class FileListAdapter(
 
         fun bind(item: FileSectionItem.DateHeader) {
             binding.tvDateHeader.text = item.label
+            bindSelection()
+            SpaceUi.setSafeClickListener(binding.btnSelectDate) { onDateSelectAll(item.key) }
+        }
+
+        fun bindSelection() {
             binding.btnSelectDate.visibility = if (selectionMode) View.VISIBLE else View.GONE
-            binding.btnSelectDate.setOnClickListener { onDateSelectAll(item.key) }
         }
     }
 
@@ -75,15 +105,10 @@ class FileListAdapter(
         }
 
         fun bind(item: FileItem) {
-            val selected = selectedPaths.contains(item.path)
             binding.tvFileName.text = item.name
             binding.tvFileMeta.text = buildMeta(item)
             binding.tvDuration.visibility = if (item.type == FileType.VIDEO) View.VISIBLE else View.GONE
             binding.tvDuration.text = FileFormatters.formatDuration(item.durationMs)
-            binding.root.isSelected = selected
-            binding.selectionOverlay.visibility = if (selected) View.VISIBLE else View.GONE
-            binding.checkContainer.visibility = if (selectionMode) View.VISIBLE else View.GONE
-            binding.checkContainer.alpha = if (selected) 1f else 0.32f
 
             val imageSource = when {
                 item.type == FileType.IMAGE -> File(item.path)
@@ -100,8 +125,17 @@ class FileListAdapter(
                 binding.ivFileIcon.setImageResource(defaultIcon(item))
             }
 
-            binding.root.setOnClickListener { onClick(item) }
+            bindSelection(item)
+            SpaceUi.setSafeClickListener(binding.root) { onClick(item) }
             binding.root.setOnLongClickListener { onLongClick(item) }
+        }
+
+        fun bindSelection(item: FileItem) {
+            val selected = selectedPaths.contains(item.path)
+            binding.root.isSelected = selected
+            binding.selectionOverlay.visibility = if (selected) View.VISIBLE else View.GONE
+            binding.checkContainer.visibility = if (selectionMode) View.VISIBLE else View.GONE
+            binding.checkContainer.alpha = if (selected) 1f else 0.32f
         }
 
         private fun buildMeta(item: FileItem): String {
@@ -141,5 +175,6 @@ class FileListAdapter(
     private companion object {
         const val VIEW_TYPE_DATE_HEADER = 0
         const val VIEW_TYPE_FILE = 1
+        const val PAYLOAD_SELECTION = "selection"
     }
 }

@@ -60,17 +60,12 @@ class WorkProfileManager @Inject constructor(
     private val sharedPrefs by lazy {
         context.getSharedPreferences("work_profile_prefs", Context.MODE_PRIVATE)
     }
-    private val mainPrefs by lazy {
-        context.getSharedPreferences("work_profile_main_prefs", Context.MODE_PRIVATE)
-    }
     private val foregroundMonitorHandler by lazy { Handler(Looper.getMainLooper()) }
     private val residualHideActionLastRunAt = mutableMapOf<String, Long>()
     private val pendingKeepAliveHidePackages = mutableSetOf<String>()
 
     companion object {
         private const val TAG = "WorkProfileManager"
-        const val REQUEST_CODE_PROVISION_PROFILE = 1001
-        const val REQUEST_CODE_ENABLE_ADMIN = 1002
         const val ACTION_OPEN_PRIVACY_SPACE = "com.system.launcher.tools.action.OPEN_PRIVACY_SPACE"
         const val ACTION_OPEN_REAL_GAME_CENTER = "com.system.launcher.tools.action.OPEN_REAL_GAME_CENTER"
         const val ACTION_CLEANUP_LAUNCHER_SHORTCUT = "com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT"
@@ -152,6 +147,7 @@ class WorkProfileManager @Inject constructor(
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
             showLauncherShortcutCleanupActivityInProfile()
+            hidePersonalMediaImportActivityInProfile()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
                 Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
@@ -170,6 +166,11 @@ class WorkProfileManager @Inject constructor(
             devicePolicyManager.addCrossProfileIntentFilter(
                 admin,
                 IntentFilter(ACTION_CLEANUP_LAUNCHER_SHORTCUT).apply { addCategory(Intent.CATEGORY_DEFAULT) },
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
+            )
+            devicePolicyManager.addCrossProfileIntentFilter(
+                admin,
+                IntentFilter(ProfileMediaTransferContract.ACTION_IMPORT_MEDIA_TO_PERSONAL).apply { addCategory(Intent.CATEGORY_DEFAULT) },
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
             )
             devicePolicyManager.addCrossProfileIntentFilter(
@@ -224,28 +225,30 @@ class WorkProfileManager @Inject constructor(
         }
     }
 
-    fun canUseWorkProfileFeatures(): Boolean {
-        val markedReady = isMainProfileMarkedReady()
-        val profileExists = checkIfProfileExists()
-        val result = markedReady || profileExists
-        Log.i(TAG, "canUseWorkProfileFeatures: markedReady=$markedReady, profileExists=$profileExists, result=$result")
-        return result
+    fun connectionState(): WorkProfileConnectionState {
+        val profileOwner = isProfileOwner()
+        val crossProfileTarget = hasCrossProfileTarget()
+        val otherProfile = checkIfProfileExists()
+        return WorkProfileConnectionDecider.decide(
+            isProfileOwner = profileOwner,
+            hasCrossProfileTarget = crossProfileTarget,
+            hasOtherProfile = otherProfile
+        ).also { state ->
+            Log.i(
+                TAG,
+                "connectionState=$state profileOwner=$profileOwner crossProfileTarget=$crossProfileTarget otherProfile=$otherProfile"
+            )
+        }
     }
 
-    fun markMainProfileReady() {
-        val success = mainPrefs.edit().putBoolean("work_profile_ready", true).commit()
-        Log.i(TAG, "Main profile marked as ready, commitSuccess=$success")
-    }
-
-    fun clearMainProfileReady() {
-        val success = mainPrefs.edit().putBoolean("work_profile_ready", false).commit()
-        Log.i(TAG, "Main profile ready flag cleared, commitSuccess=$success")
-    }
-
-    fun isMainProfileMarkedReady(): Boolean {
-        val value = mainPrefs.getBoolean("work_profile_ready", false)
-        Log.i(TAG, "isMainProfileMarkedReady: $value")
-        return value
+    fun hasCrossProfileTarget(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        return runCatching {
+            val currentUser = android.os.Process.myUserHandle()
+            getCrossProfileApps().targetUserProfiles.any { it != currentUser }
+        }.onFailure { error ->
+            Log.w(TAG, "Unable to inspect cross-profile targets", error)
+        }.getOrDefault(false)
     }
 
     fun isProfileOwner(): Boolean {
@@ -307,6 +310,141 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.work.LauncherShortcutCleanupActivity")
     }
 
+    private fun getPersonalMediaImportComponent(): ComponentName {
+        return ComponentName(context.packageName, "${context.packageName}.ui.files.PersonalMediaImportActivity")
+    }
+
+    fun startMediaTransferToPersonal(
+        activity: Activity,
+        transferId: String,
+        operation: ProfileMediaTransferContract.Operation,
+        mediaUris: List<Uri>,
+        resultCallback: android.app.PendingIntent?,
+        onLaunchResult: (Boolean) -> Unit
+    ): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            Log.w(TAG, "Reject media transfer: Android ${Build.VERSION.SDK_INT} is below API 29")
+            return false
+        }
+        if (!isProfileOwner()) {
+            Log.w(TAG, "Reject media transfer: current user is not Profile Owner")
+            return false
+        }
+        if (transferId.isBlank()) {
+            Log.w(TAG, "Reject media transfer: transfer ID is blank")
+            return false
+        }
+        if (mediaUris.isEmpty()) {
+            Log.w(TAG, "Reject media transfer: URI list is empty")
+            return false
+        }
+        if (mediaUris.size > ProfileMediaTransferContract.MAX_ITEMS_PER_TRANSFER) {
+            Log.w(TAG, "Reject media transfer: count=${mediaUris.size} exceeds limit")
+            return false
+        }
+        val personalUser = findPersonalProfileTransferTarget() ?: run {
+            Log.e(
+                TAG,
+                "Reject media transfer: no personal target; crossProfileTargets=${crossProfileTargetSnapshot()} launcherProfiles=${launcherApps.profiles}"
+            )
+            return false
+        }
+        val preparationCallback = object : android.os.ResultReceiver(Handler(Looper.getMainLooper())) {
+            override fun onReceiveResult(resultCode: Int, resultData: android.os.Bundle?) {
+                if (resultCode != ProfileMediaTransferSourceService.PREPARE_COMPLETE) {
+                    Log.e(TAG, "Media source preparation failed id=$transferId result=$resultCode")
+                    onLaunchResult(false)
+                    return
+                }
+                val prepared = ProfileMediaTransferContract.readPreparedSource(resultData)
+                if (prepared == null) {
+                    Log.e(TAG, "Media source preparation returned invalid data id=$transferId")
+                    onLaunchResult(false)
+                    return
+                }
+                val importIntent = runCatching {
+                    ProfileMediaTransferContract.createImportIntent(
+                        transferId = transferId,
+                        operation = operation,
+                        sources = prepared.sources,
+                        sourceReceiver = prepared.sourceReceiver,
+                        resultCallback = resultCallback
+                    )
+                }.onFailure { error ->
+                    Log.e(TAG, "Unable to create prepared media transfer intent id=$transferId", error)
+                }.getOrNull()
+                if (importIntent == null) {
+                    prepared.sourceReceiver.send(
+                        ProfileMediaTransferContract.SOURCE_REQUEST_CLOSE,
+                        android.os.Bundle.EMPTY
+                    )
+                    onLaunchResult(false)
+                    return
+                }
+
+                val launched = runCatching {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        getCrossProfileApps().startActivity(
+                            Intent(importIntent).apply { component = getPersonalMediaImportComponent() },
+                            personalUser,
+                            activity
+                        )
+                    } else {
+                        activity.startActivity(Intent(importIntent).apply { setPackage(null) })
+                    }
+                    Log.i(
+                        TAG,
+                        "Started personal-profile media transfer with isolated source id=$transferId operation=$operation count=${mediaUris.size} target=$personalUser"
+                    )
+                    true
+                }.onFailure { error ->
+                    prepared.sourceReceiver.send(
+                        ProfileMediaTransferContract.SOURCE_REQUEST_CLOSE,
+                        android.os.Bundle.EMPTY
+                    )
+                    Log.e(TAG, "Unable to launch prepared personal-profile media transfer id=$transferId", error)
+                }.getOrDefault(false)
+                onLaunchResult(launched)
+            }
+        }
+
+        return ProfileMediaTransferSourceService.start(
+            context = context,
+            transferId = transferId,
+            uris = mediaUris,
+            callback = preparationCallback
+        ).also { accepted ->
+            if (accepted) {
+                Log.i(TAG, "Requested isolated media source preparation id=$transferId count=${mediaUris.size}")
+            }
+        }
+    }
+
+    private fun findPersonalProfileTransferTarget(): UserHandle? {
+        val currentUser = android.os.Process.myUserHandle()
+        val crossProfileTargets = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            runCatching { getCrossProfileApps().targetUserProfiles }
+                .onFailure { error ->
+                    Log.w(TAG, "Unable to read CrossProfileApps transfer targets", error)
+                }
+                .getOrDefault(emptyList())
+        } else {
+            emptyList()
+        }
+        val launcherProfiles = runCatching { launcherApps.profiles }
+            .onFailure { error -> Log.w(TAG, "Unable to read LauncherApps transfer profiles", error) }
+            .getOrDefault(emptyList())
+        return CrossProfileTargetSelector.select(currentUser, crossProfileTargets, launcherProfiles)?.also { target ->
+            val source = if (target in crossProfileTargets) "CrossProfileApps" else "LauncherApps fallback"
+            Log.i(TAG, "Resolved personal transfer target from $source: $target")
+        }
+    }
+
+    private fun crossProfileTargetSnapshot(): List<UserHandle> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return emptyList()
+        return runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
+    }
+
     fun redirectToManagedProfile(
         activity: Activity,
         targetActivity: Class<out Activity>
@@ -333,7 +471,7 @@ class WorkProfileManager @Inject constructor(
             }
             if (targetActivity.name == "${context.packageName}.MainActivity" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val explicitIntent = Intent(ACTION_OPEN_PRIVACY_SPACE).apply {
-                    setComponent(ComponentName(context.packageName, "${context.packageName}.MainActivity"))
+                    setComponent(getPrivacyActionComponent())
                     addCategory(Intent.CATEGORY_DEFAULT)
                 }
                 runCatching {
@@ -413,27 +551,21 @@ class WorkProfileManager @Inject constructor(
         return true
     }
 
-    fun becomeProfileOwner(activity: Activity): Boolean {
-        return if (isProfileOwner()) true else createProfile(activity)
-    }
-
-    fun createProfile(activity: Activity): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return false
+    fun createProfileIntent(): Intent? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
         return try {
             if (checkIfProfileExists()) {
                 Log.w(TAG, "Work Profile already exists")
-                false
+                null
             } else if (!devicePolicyManager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)) {
                 Log.e(TAG, "Provisioning not allowed on this device")
-                false
+                null
             } else {
-                activity.startActivityForResult(createProvisioningIntent(), REQUEST_CODE_PROVISION_PROFILE)
-                Log.i(TAG, "Started Work Profile provisioning")
-                true
+                createProvisioningIntent()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating profile", e)
-            false
+            Log.e(TAG, "Error preparing profile provisioning", e)
+            null
         }
     }
 
@@ -455,7 +587,6 @@ class WorkProfileManager @Inject constructor(
             if (isProfileOwner()) {
                 devicePolicyManager.wipeData(0)
                 sharedPrefs.edit().clear().apply()
-                clearMainProfileReady()
                 Log.i(TAG, "Work Profile removed")
             }
         } catch (e: Exception) {
@@ -556,6 +687,10 @@ class WorkProfileManager @Inject constructor(
         return setLauncherShortcutCleanupActivityEnabled(true)
     }
 
+    fun hidePersonalMediaImportActivityInProfile(): Boolean {
+        return setPersonalMediaImportActivityEnabled(false)
+    }
+
     private fun setPrivacySpaceLauncherAliasEnabled(enabled: Boolean): Boolean {
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
@@ -611,6 +746,18 @@ class WorkProfileManager @Inject constructor(
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error setting launcher shortcut cleanup activity enabled=$enabled", e)
+            false
+        }
+    }
+
+    private fun setPersonalMediaImportActivityEnabled(enabled: Boolean): Boolean {
+        return try {
+            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
+            packageManager.setComponentEnabledSetting(getPersonalMediaImportComponent(), state, DONT_KILL_APP)
+            Log.i(TAG, "Set personal media import activity enabled=$enabled")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting personal media import activity enabled=$enabled", e)
             false
         }
     }

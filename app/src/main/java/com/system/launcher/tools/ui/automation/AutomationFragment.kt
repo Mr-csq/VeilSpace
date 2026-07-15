@@ -43,6 +43,7 @@ class AutomationFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupActions()
         observeState()
+        SpaceUi.applySystemBarInsets(binding.pageContent)
         SpaceUi.reveal(binding.pageContent)
     }
 
@@ -52,9 +53,9 @@ class AutomationFragment : Fragment() {
     }
 
     private fun setupActions() {
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
-        binding.btnStartTime.setOnClickListener { pickTime(draft.startMinuteOfDay, true) }
-        binding.btnEndTime.setOnClickListener { pickTime(draft.endMinuteOfDay, false) }
+        SpaceUi.setSafeClickListener(binding.btnBack) { findNavController().popBackStack() }
+        SpaceUi.setSafeClickListener(binding.btnStartTime) { pickTime(draft.startMinuteOfDay, true) }
+        SpaceUi.setSafeClickListener(binding.btnEndTime) { pickTime(draft.endMinuteOfDay, false) }
         binding.radioChinaWorkday.setOnCheckedChangeListener { _, checked ->
             if (checked) {
                 draft = draft.copy(dateMode = AutomationDateMode.CHINA_LEGAL_WORKDAY)
@@ -72,7 +73,7 @@ class AutomationFragment : Fragment() {
                 if (initialRenderComplete) draft = draft.copy(customWeekdays = selectedWeekdays())
             }
         }
-        binding.btnExactPermission.setOnClickListener {
+        SpaceUi.setSafeClickListener(binding.btnExactPermission) {
             val intent = viewModel.createExactAlarmPermissionIntent()
             if (intent == null) {
                 showSpaceMessage("精确闹钟权限已可用")
@@ -81,7 +82,7 @@ class AutomationFragment : Fragment() {
                     .onFailure { showSpaceMessage("系统未提供精确闹钟授权页面") }
             }
         }
-        binding.btnSave.setOnClickListener { saveDraft() }
+        SpaceUi.setSafeClickListener(binding.btnSave) { saveDraft() }
         SpaceUi.attachPressScale(binding.btnBack, 0.9f)
         SpaceUi.attachPressScale(binding.btnStartTime, 0.98f)
         SpaceUi.attachPressScale(binding.btnEndTime, 0.98f)

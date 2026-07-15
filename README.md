@@ -8,7 +8,7 @@ VeilSpace 是一个基于 Android Work Profile / Managed Profile 的隐私空间
 - 在隐藏空间内安装、启动、隐藏和卸载应用。
 - 以“游戏中心”伪装入口进入隐藏空间。
 - 缓存应用元数据与图标，并区分已安装、缺失和待验证状态。
-- 提供图片、视频和全部文件管理。
+- 提供图片、视频和全部文件管理，并可选择将图片或视频复制或安全移动到主空间媒体库。
 - 允许用户为兼容 VPN 等场景开启 VeilSpace `keepAlive` 策略。
 - 按中国法定工作日或自定义星期，在全局开始/结束边界切换所选应用的 `keepAlive` 和通知权限。
 - 使用统一的深色空间视觉系统、语义色、共享组件、页面动效和 Snackbar 反馈。
@@ -61,9 +61,9 @@ gradle --no-daemon --max-workers=1 --console=plain lintDebug
 gradle --no-daemon --max-workers=1 --console=plain assembleDebug
 ```
 
-工作日自动化的 JVM 单元测试覆盖法定节假日、调休补班、跨午夜、下一边界、同一分钟无效配置、重复边界幂等和手动覆盖语义。
+JVM 单元测试覆盖工作日自动化边界、Work Profile 四态连接决策、跨资料媒体文件命名，以及安全移动结果规则。
 
-2026-07-14 本地复核结果：Debug 构建通过；11 个 JVM 测试全部通过；lint 为 0 个错误、191 个警告。lint 已不再阻断构建，但权限 suppress、硬编码文本、未使用资源和无障碍警告仍需要继续清理。
+2026-07-14 本地复核结果：Debug 构建通过；26 个 JVM 测试全部通过；lint 为 0 个错误、195 个警告。lint 已不再阻断构建，但权限 suppress、硬编码文本、未使用资源和无障碍警告仍需要继续清理。
 
 ## 设备限制
 
@@ -71,6 +71,7 @@ gradle --no-daemon --max-workers=1 --console=plain assembleDebug
 - Android 13+ 的目标应用通知权限只有在应用声明 `POST_NOTIFICATIONS` 且 DPM 接受操作时才会记录为成功；单个应用失败不会阻断其他应用。
 - 精确闹钟权限可能被系统默认拒绝；未授权时执行可能延迟。
 - 小米系统工具的工作资料入口并不保证可用，VeilSpace 对此采用能力检测和降级提示。
+- 真实首页不对外导出，跨资料代理使用签名级权限；应用数据和设备迁移备份默认关闭。
 
 更多工程上下文见 [docs/current_state.md](docs/current_state.md)。
 

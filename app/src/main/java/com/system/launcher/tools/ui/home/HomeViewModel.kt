@@ -23,6 +23,7 @@ import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.AppRepository
 import com.system.launcher.tools.data.repository.ProfileAppStore
 import com.system.launcher.tools.work.WorkProfileManager
+import com.system.launcher.tools.work.WorkProfileConnectionState
 import com.system.launcher.tools.work.WorkProfilePackageReceiver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
@@ -173,7 +174,7 @@ class HomeViewModel @Inject constructor(
     ): String {
         return when {
             app.packageName == getInternalFileManagerPackageName() -> ""
-            installVerification == InstallVerification.CONFIRMED_MISSING -> "应用已卸载，记录仍保留，可在应用管理中移除"
+            installVerification == InstallVerification.CONFIRMED_MISSING -> "应用已卸载，记录仍保留，可在应用设置中移除"
             installVerification == InstallVerification.UNKNOWN && app.entrySource == AppEntrySource.SYSTEM_CANDIDATE -> "系统候选入口，当前无法确认是否已安装在隐藏空间中"
             installVerification == InstallVerification.UNKNOWN -> "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中"
             launchVerification == LaunchVerification.NOT_LAUNCHABLE -> "未找到可启动入口，可能是系统组件或启动入口被系统限制"
@@ -267,12 +268,18 @@ class HomeViewModel @Inject constructor(
     }
 
     fun validateInstallEntry(): String? {
-        if (!workProfileManager.canUseWorkProfileFeatures()) {
-            return "未检测到可用的工作资料，请先完成创建或授权"
-        }
         if (!workProfileManager.isProfileOwner()) {
-            workProfileManager.requestManagedProfileAvailable()
-            return "当前不在工作资料实例中，请从工作资料入口打开后再添加应用"
+            return when (workProfileManager.connectionState()) {
+                WorkProfileConnectionState.CONNECTED_MANAGED_PROFILE -> {
+                    workProfileManager.requestManagedProfileAvailable()
+                    "当前不在工作资料实例中，请恢复并从工作资料入口打开后再添加应用"
+                }
+                WorkProfileConnectionState.OTHER_PROFILE_PRESENT -> {
+                    "现有工作资料不受 VeilSpace 管理，请先在引导页处理资料冲突"
+                }
+                WorkProfileConnectionState.NO_PROFILE -> "尚未创建 VeilSpace 工作资料"
+                WorkProfileConnectionState.CURRENT_PROFILE_OWNER -> null
+            }
         }
         workProfileManager.configureCrossProfileEntry()
         return null

@@ -24,7 +24,7 @@ object MaterialActionDialogs {
         val onClick: () -> Unit
     )
 
-    fun show(context: Context, title: String, actions: List<Action>) {
+    fun show(context: Context, title: String, actions: List<Action>): BottomSheetDialog {
         fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
         val dialog = BottomSheetDialog(context)
         val content = LinearLayout(context).apply {
@@ -83,7 +83,7 @@ object MaterialActionDialogs {
                 includeFontPadding = false
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             SpaceUi.attachPressScale(row, 0.985f)
-            row.setOnClickListener {
+            SpaceUi.setSafeClickListener(row) {
                 dialog.dismiss()
                 action.onClick()
             }
@@ -101,5 +101,6 @@ object MaterialActionDialogs {
             SpaceUi.reveal(content)
         }
         dialog.show()
+        return dialog
     }
 }

@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <permission
+        android:name="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE" />
+
     <!-- Work Profile 相关权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
@@ -15,6 +20,8 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
     <uses-permission android:name="android.permission.INTERACT_ACROSS_PROFILES" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="com.miui.home.launcher.permission.UNINSTALL_SHORTCUT" />
@@ -23,7 +30,7 @@
 
     <application
         android:name=".PrivacySpaceApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@drawable/ic_app_icon"
@@ -46,7 +53,7 @@
         <!-- MainActivity 不显示在桌面 -->
         <activity
             android:name=".MainActivity"
-            android:exported="true"
+            android:exported="false"
             android:theme="@style/Theme.PrivacySpace"
             android:icon="@drawable/ic_app_icon"
             android:roundIcon="@drawable/ic_app_icon">
@@ -56,6 +63,29 @@
             android:name=".ui.files.ImagePreviewActivity"
             android:exported="false"
             android:theme="@style/Theme.PrivacySpace" />
+
+        <activity
+            android:name=".ui.files.PersonalMediaImportActivity"
+            android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
+            android:theme="@style/Theme.PrivacySpace"
+            android:excludeFromRecents="true">
+            <intent-filter>
+                <action android:name="com.system.launcher.tools.action.IMPORT_MEDIA_TO_PERSONAL" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <receiver
+            android:name=".ui.files.ProfileMediaTransferResultReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".work.ProfileMediaTransferSourceService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:process=":media_transfer_source"
+            android:stopWithTask="false" />
 
         <!-- DisguiseActivity 伪装入口 -->
         <activity
@@ -67,6 +97,7 @@
         <activity
             android:name=".ui.disguise.GameCenterProxyActivity"
             android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
             android:theme="@style/Theme.Transparent"
             android:excludeFromRecents="true"
             android:noHistory="true">
@@ -79,7 +110,8 @@
 
         <receiver
             android:name=".ui.disguise.GameCenterProxyReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE">
             <intent-filter>
                 <action android:name="com.system.launcher.tools.action.OPEN_REAL_GAME_CENTER" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -89,6 +121,7 @@
         <activity
             android:name=".work.LauncherShortcutCleanupActivity"
             android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
             android:theme="@style/Theme.Transparent"
             android:excludeFromRecents="true"
             android:noHistory="true">
@@ -100,7 +133,8 @@
 
         <receiver
             android:name=".work.LauncherShortcutCleanupReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE">
             <intent-filter>
                 <action android:name="com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -142,6 +176,7 @@
             android:name=".PrivacyActionAlias"
             android:targetActivity=".MainActivity"
             android:exported="true"
+            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
             android:enabled="false"
             android:icon="@drawable/ic_app_icon"
             android:roundIcon="@drawable/ic_app_icon"
@@ -166,7 +201,7 @@
 
         <receiver
             android:name=".work.WorkProfileSetupReceiver"
-            android:exported="true"
+            android:exported="false"
             android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

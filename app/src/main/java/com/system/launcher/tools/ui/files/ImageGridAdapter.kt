@@ -44,8 +44,23 @@ class ImageGridAdapter(
         }
     }
 
-    fun submitFiles(files: List<FileItem>) {
-        submitList(FileSectionItem.fromFiles(files))
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>
+    ) {
+        if (payloads.contains(PAYLOAD_SELECTION)) {
+            when (val item = getItem(position)) {
+                is FileSectionItem.DateHeader -> (holder as DateHeaderViewHolder).bindSelection()
+                is FileSectionItem.FileRow -> (holder as ImageViewHolder).bindSelection(item.item)
+            }
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    fun submitFiles(files: List<FileItem>, onCommitted: () -> Unit = {}) {
+        submitList(FileSectionItem.fromFiles(files), onCommitted)
     }
 
     fun isDateHeader(position: Int): Boolean {
@@ -53,10 +68,21 @@ class ImageGridAdapter(
     }
 
     fun setSelectionState(paths: Set<String>, enabled: Boolean) {
+        if (selectionMode == enabled && selectedPaths == paths) return
+        val selectionModeChanged = selectionMode != enabled
+        val changedPaths = (selectedPaths - paths) + (paths - selectedPaths)
         selectedPaths.clear()
         selectedPaths.addAll(paths)
         selectionMode = enabled
-        notifyDataSetChanged()
+        if (selectionModeChanged) {
+            notifyItemRangeChanged(0, itemCount, PAYLOAD_SELECTION)
+        } else if (changedPaths.isNotEmpty()) {
+            currentList.forEachIndexed { index, item ->
+                if (item is FileSectionItem.FileRow && item.item.path in changedPaths) {
+                    notifyItemChanged(index, PAYLOAD_SELECTION)
+                }
+            }
+        }
     }
 
     inner class DateHeaderViewHolder(
@@ -68,8 +94,12 @@ class ImageGridAdapter(
 
         fun bind(item: FileSectionItem.DateHeader) {
             binding.tvDateHeader.text = item.label
+            bindSelection()
+            SpaceUi.setSafeClickListener(binding.btnSelectDate) { onDateSelectAll(item.key) }
+        }
+
+        fun bindSelection() {
             binding.btnSelectDate.visibility = if (selectionMode) View.VISIBLE else View.GONE
-            binding.btnSelectDate.setOnClickListener { onDateSelectAll(item.key) }
         }
     }
 
@@ -79,7 +109,6 @@ class ImageGridAdapter(
         }
 
         fun bind(item: FileItem) {
-            val selected = selectedPaths.contains(item.path)
             val imageSource = when {
                 item.type == FileType.IMAGE -> File(item.path)
                 item.type == FileType.VIDEO && item.thumbnailPath != null -> File(item.thumbnailPath)
@@ -100,12 +129,17 @@ class ImageGridAdapter(
             binding.tvVideoDuration.text = if (video) FileFormatters.formatDuration(item.durationMs) else ""
 
             binding.tvName.text = item.name
+            bindSelection(item)
+            SpaceUi.setSafeClickListener(binding.root) { onClick(item) }
+            binding.root.setOnLongClickListener { onLongClick(item) }
+        }
+
+        fun bindSelection(item: FileItem) {
+            val selected = selectedPaths.contains(item.path)
             binding.root.isSelected = selected
             binding.selectionOverlay.visibility = if (selected) View.VISIBLE else View.GONE
             binding.checkContainer.visibility = if (selectionMode) View.VISIBLE else View.GONE
             binding.checkContainer.alpha = if (selected) 1f else 0.32f
-            binding.root.setOnClickListener { onClick(item) }
-            binding.root.setOnLongClickListener { onLongClick(item) }
         }
 
         private fun defaultIcon(item: FileItem): Int {
@@ -132,5 +166,6 @@ class ImageGridAdapter(
     private companion object {
         const val VIEW_TYPE_DATE_HEADER = 0
         const val VIEW_TYPE_IMAGE = 1
+        const val PAYLOAD_SELECTION = "selection"
     }
 }

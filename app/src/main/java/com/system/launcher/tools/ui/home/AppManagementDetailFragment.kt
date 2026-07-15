@@ -43,7 +43,7 @@ class AppManagementDetailFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        packageName = requireArguments().getString(AppManagementFragment.ARG_PACKAGE_NAME).orEmpty()
+        packageName = requireArguments().getString(AppManagementListFragment.ARG_PACKAGE_NAME).orEmpty()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -55,24 +55,25 @@ class AppManagementDetailFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         setupActions()
         observeViewModel()
+        SpaceUi.applySystemBarInsets(binding.pageContent)
         SpaceUi.reveal(binding.pageContent)
     }
 
     private fun setupActions() {
-        binding.btnBack.setOnClickListener { findNavController().popBackStack() }
-        binding.btnRefreshStatus.setOnClickListener {
+        SpaceUi.setSafeClickListener(binding.btnBack) { findNavController().popBackStack() }
+        SpaceUi.setSafeClickListener(binding.btnRefreshStatus) {
             showSpaceMessage("正在刷新应用状态")
             viewModel.refreshAll()
         }
-        binding.btnRefreshIcon.setOnClickListener {
-            val app = currentApp ?: return@setOnClickListener
+        SpaceUi.setSafeClickListener(binding.btnRefreshIcon) {
+            val app = currentApp ?: return@setSafeClickListener
             viewModel.refreshIcon(app)
             showSpaceMessage("正在刷新图标")
         }
-        binding.btnUninstallApp.setOnClickListener {
+        SpaceUi.setSafeClickListener(binding.btnUninstallApp) {
             currentApp?.let { confirmUninstall(it) }
         }
-        binding.btnRemoveRecord.setOnClickListener {
+        SpaceUi.setSafeClickListener(binding.btnRemoveRecord) {
             currentApp?.let { confirmRemoveRecord(it) }
         }
         SpaceUi.attachPressScale(binding.btnBack, 0.9f)

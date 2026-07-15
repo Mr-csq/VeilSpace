@@ -97,6 +97,6 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 - Date: 2026-07-14
 - Incremental build: `scripts\build_debug_fast.ps1 -CleanNativeLocks -BuildAfterCleanup` returned `BUILD SUCCESSFUL in 55s`.
-- Unit tests: `testDebugUnitTest` ran 11 tests with 0 failures, 0 errors and 0 skipped.
-- Lint: `lintDebug` succeeded with 0 errors and 191 warnings.
+- Unit tests: `testDebugUnitTest` ran 15 tests with 0 failures, 0 errors and 0 skipped.
+- Lint: `lintDebug` succeeded with 0 errors and 185 warnings after entry, proxy and backup hardening.
 - Previous clean-build/device check remains valid: the 2026-07-13 clean build succeeded in 7m 37s and `adb install -r app\build\outputs\apk\debug\app-debug.apk` returned `Success`.

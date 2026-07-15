@@ -9,6 +9,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -36,6 +37,7 @@ class HomeFragment : Fragment() {
     private var pendingApkUri: Uri? = null
     private var packageMonitor: ProfilePackageMonitor? = null
     private var dragChanged = false
+    private var settingsDialog: BottomSheetDialog? = null
 
     private val apkPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) handleSelectedApk(uri)
@@ -76,6 +78,7 @@ class HomeFragment : Fragment() {
         setupRecyclerView()
         setupActions()
         observeViewModel()
+        SpaceUi.applySystemBarInsets(binding.pageContent)
         SpaceUi.reveal(binding.pageContent)
     }
 
@@ -146,18 +149,19 @@ class HomeFragment : Fragment() {
     }
 
     private fun setupActions() {
-        binding.btnAddApp.setOnClickListener { openApkPickerWithValidation() }
-        binding.btnSettings.setOnClickListener { showSettingsDialog() }
+        SpaceUi.setSafeClickListener(binding.btnAddApp) { openApkPickerWithValidation() }
+        SpaceUi.setSafeClickListener(binding.btnSettings) { showSettingsDialog() }
         SpaceUi.attachPressScale(binding.btnAddApp, 0.9f)
         SpaceUi.attachPressScale(binding.btnSettings, 0.9f)
     }
 
     private fun showSettingsDialog() {
-        MaterialActionDialogs.show(
+        if (settingsDialog?.isShowing == true) return
+        settingsDialog = MaterialActionDialogs.show(
             context = requireContext(),
             title = "设置",
             actions = listOf(
-                MaterialActionDialogs.Action("应用管理", R.drawable.ic_settings_24) {
+                MaterialActionDialogs.Action("隐藏空间设置", R.drawable.ic_settings_24) {
                     findNavController().navigate(R.id.action_home_to_app_management)
                 },
                 MaterialActionDialogs.Action("修复应用图标", R.drawable.ic_repair_24) { repairAppIcons() },
@@ -166,6 +170,7 @@ class HomeFragment : Fragment() {
                 MaterialActionDialogs.Action("本应用未知来源授权", R.drawable.ic_info_24) { launchUnknownAppSourcesSettings() }
             )
         )
+        settingsDialog?.setOnDismissListener { settingsDialog = null }
     }
     private fun repairAppIcons() {
         showSpaceMessage("正在修复应用图标")
@@ -231,7 +236,7 @@ class HomeFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(app.appName)
             .setMessage(reason)
-            .setPositiveButton("应用管理") { _, _ -> findNavController().navigate(R.id.action_home_to_app_management) }
+            .setPositiveButton("隐藏空间设置") { _, _ -> findNavController().navigate(R.id.action_home_to_app_management) }
             .setNegativeButton("取消", null)
             .showSpace()
     }
@@ -337,6 +342,8 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        settingsDialog?.dismiss()
+        settingsDialog = null
         packageMonitor?.stop()
         packageMonitor = null
         _binding = null

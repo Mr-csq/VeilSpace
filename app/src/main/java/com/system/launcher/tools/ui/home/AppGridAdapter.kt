@@ -83,8 +83,9 @@ class AppGridAdapter(
 
         fun bind(app: AppInfo) {
             binding.apply {
-                tvAppName.text = app.appName
-                root.contentDescription = app.appName
+                val displayName = app.homeDisplayName()
+                tvAppName.text = displayName
+                root.contentDescription = displayName
                 val fallback = ContextCompat.getDrawable(root.context, R.drawable.sym_def_app_icon)
                 ivAppIcon.setImageDrawable(normalizeIcon(app.icon ?: fallback))
                 val blocked = app.installVerification == InstallVerification.CONFIRMED_MISSING ||
@@ -105,8 +106,16 @@ class AppGridAdapter(
                 tvAppStatus.visibility = if (status.isNotBlank()) View.VISIBLE else View.GONE
                 tvAppStatus.text = status
 
-                root.setOnClickListener { onAppClick(app) }
+                SpaceUi.setSafeClickListener(root) { onAppClick(app) }
                 root.setOnLongClickListener(null)
+            }
+        }
+
+        private fun AppInfo.homeDisplayName(): String {
+            return when (packageName) {
+                GOOGLE_PLAY_STORE_PACKAGE -> "Google商店"
+                GOOGLE_PLAY_SERVICES_PACKAGE -> "Google服务"
+                else -> appName
             }
         }
 
@@ -156,4 +165,9 @@ class AppGridAdapter(
         val iconStatus: IconStatus,
         val diagnosticReason: String
     )
+
+    private companion object {
+        const val GOOGLE_PLAY_STORE_PACKAGE = "com.android.vending"
+        const val GOOGLE_PLAY_SERVICES_PACKAGE = "com.google.android.gms"
+    }
 }

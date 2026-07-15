@@ -66,6 +66,7 @@ MainActivity
 - 主资料访问工作资料：`ACTION_OPEN_PRIVACY_SPACE`。
 - 工作资料打开主资料真实游戏中心：`ACTION_OPEN_REAL_GAME_CENTER`。
 - 工作资料请求主资料清理桌面 shortcut：`ACTION_CLEANUP_LAUNCHER_SHORTCUT`。
+- 工作资料将用户选中的图片或视频复制或移动到主资料：跨资料启动 Intent 不携带 URI，源文件由工作资料 `:media_transfer_source` 独立进程中的前台数据服务持有，并通过 Binder 可靠管道流式传给主资料。主资料在字节数与 SHA-256 校验通过后才发布 MediaStore 目标，从而避开 HyperOS 3 的 URI grant 错误和系统分享策略限制；移动完成结果通过仅限应用内部的 `PendingIntent` 回到工作资料。
 
 ## 创建流程
 
@@ -75,17 +76,18 @@ MainActivity
 4. 系统完成后回调 `onProfileProvisioningComplete()`。
 5. Profile Owner 启用资料，并配置跨资料入口和安装策略。
 
-### 当前状态模型缺陷
+### 当前状态模型
 
-现有 UI 把“发现已有工作资料”描述为可以“授权管理”，但 `becomeProfileOwner()` 在不是 owner 时仍调用 `createProfile()`，而 `createProfile()` 遇到已存在资料会直接失败。Android 也不允许普通应用接管由其他 DPC 管理的既有资料。
+2026-07-14 已移除 `work_profile_ready` 人工授权判断，并引入四态模型：
 
-同时，`canUseWorkProfileFeatures()` 使用“人工就绪标记或发现任意其他资料”判断可用，这不等价于当前实例拥有 Profile Owner 或跨资料访问能力。后续应拆分：
+- `CURRENT_PROFILE_OWNER`：当前实例就是 Profile Owner，可以显示真实首页。
+- `CONNECTED_MANAGED_PROFILE`：主资料发现可由 VeilSpace 跨资料访问的目标，应跳转工作资料。
+- `OTHER_PROFILE_PRESENT`：发现其他 DPC 或系统创建的资料，VeilSpace 不承诺接管。
+- `NO_PROFILE`：没有工作资料，可以进入 provisioning。
 
-- 未发现工作资料。
-- 发现资料但由其他 DPC 管理。
-- 本应用是工作资料 Profile Owner。
-- 跨资料入口已配置并可访问。
-- 仅存在主资料人工就绪标记。
+非 Owner 的 `MainActivity` 只有成功跳转工作资料才结束引导；跳转失败时真实首页不会在主资料展示。创建流程已迁移到 Activity Result API，系统返回后重新检测真实能力，不再提供“我已完成创建”的人工放行按钮。
+
+四态决策已有纯 JVM 测试。跨资料签名权限和不同 Android/OEM 上的 alias 启用时序仍需真机回归。
 
 ## 前台安全隐藏
 
@@ -101,7 +103,8 @@ MainActivity
 ## Manifest 与权限
 
 - `WorkProfileAdminReceiver` 通过 receiver 上的 `android.permission.BIND_DEVICE_ADMIN` 保护。
-- Manifest 还声明并 suppress 了 `BIND_DEVICE_ADMIN`、`MANAGE_USERS`、`INTERACT_ACROSS_PROFILES` 和 `QUERY_ALL_PACKAGES` 的 lint 检查；lint 通过不代表这些权限已经完成发布合规审计。
+- `MainActivity` 为非导出组件；`PrivacyActionAlias`、游戏中心代理和 launcher 清理代理统一使用 `INTERNAL_CROSS_PROFILE` 签名级权限。
+- Manifest 还声明并 suppress 了 `BIND_DEVICE_ADMIN`、`MANAGE_USERS`、`INTERACT_ACROSS_PROFILES` 和 `QUERY_ALL_PACKAGES` 的 lint 检查；这是本地自用项目，不以应用商店合规为当前目标，但普通应用实际拿不到的权限仍不能作为功能成功依据。
 - `device_admin.xml` 声明 force-lock、wipe-data、reset-password、set-global-proxy 和 disable-keyguard-features，正式发布前应删除没有实际使用的策略。
 - 导出的游戏中心代理和 launcher 清理组件仍需签名权限或调用方校验。
 - `removeProfile()` 会调用 `wipeData(0)`，所有入口都必须有不可误触的强确认。
@@ -109,8 +112,9 @@ MainActivity
 ## 数据存储
 
 - `work_profile_prefs`：资料启用、provisioning 和活跃启动会话。
-- `work_profile_main_prefs`：主资料侧 `work_profile_ready` 标记。
 - 应用缓存与策略分别由 `ProfileAppStore`、`ProfileAppPolicyStore` 保存。
+
+应用设置 `allowBackup=false`，旧式备份和 Android 12+ data extraction 规则也显式排除 root、files、database、shared preferences 和 external 数据。
 
 这些状态尚未形成事务型单一事实源，卸载、策略变更和自动化跨多个 Store 更新时仍可能出现部分成功。
 

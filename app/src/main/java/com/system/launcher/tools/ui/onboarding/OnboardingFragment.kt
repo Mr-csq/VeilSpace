@@ -1,17 +1,19 @@
 package com.system.launcher.tools.ui.onboarding
 
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import com.system.launcher.tools.R
 import com.system.launcher.tools.databinding.FragmentOnboardingBinding
 import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpaceMessage
+import com.system.launcher.tools.work.WorkProfileConnectionState
 import com.system.launcher.tools.work.WorkProfileManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -30,6 +32,16 @@ class OnboardingFragment : Fragment() {
     @Inject
     lateinit var workProfileManager: WorkProfileManager
 
+    private val provisioningLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            retryProfileConnection(showFailure = false)
+        } else {
+            viewModel.setProfileStatus(ProfileStatus.ERROR)
+        }
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -44,26 +56,24 @@ class OnboardingFragment : Fragment() {
         setupUI()
         observeViewModel()
         checkProfileStatus()
+        SpaceUi.applySystemBarInsets(binding.pageContent)
         SpaceUi.reveal(binding.pageContent)
     }
 
     override fun onResume() {
         super.onResume()
-        // 从系统创建流程返回后，主动重新检查状态，避免卡在“创建中”
-        if (workProfileManager.canUseWorkProfileFeatures()) {
-            workProfileManager.markMainProfileReady()
-            viewModel.setProfileStatus(ProfileStatus.CREATED)
-        }
+        // Provisioning and quiet-mode changes complete outside this activity.
+        // Re-evaluate real capabilities instead of trusting a local ready flag.
+        checkProfileStatus(attemptRedirect = true)
     }
 
     private fun setupUI() {
-        binding.btnCreateProfile.setOnClickListener {
+        SpaceUi.setSafeClickListener(binding.btnCreateProfile) {
             createWorkProfile()
         }
 
-        binding.btnSkip.setOnClickListener {
-            // 跳过引导，但功能会受限
-            navigateToHome()
+        SpaceUi.setSafeClickListener(binding.btnSkip) {
+            retryProfileConnection(showFailure = true)
         }
         SpaceUi.attachPressScale(binding.btnCreateProfile, 0.985f)
         SpaceUi.attachPressScale(binding.btnSkip, 0.985f)
@@ -73,6 +83,7 @@ class OnboardingFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.profileStatus.observe(viewLifecycleOwner) { status ->
+            status ?: return@observe
             when (status) {
                 ProfileStatus.NOT_CREATED -> {
                     showCreateProfileUI()
@@ -82,6 +93,9 @@ class OnboardingFragment : Fragment() {
                 }
                 ProfileStatus.CREATING -> {
                     showCreatingUI()
+                }
+                ProfileStatus.EXISTING_PROFILE_UNAVAILABLE -> {
+                    showExistingProfileUI()
                 }
                 ProfileStatus.ERROR -> {
                     showErrorUI()
@@ -93,21 +107,28 @@ class OnboardingFragment : Fragment() {
     /**
      * 检查 Profile 状态
      */
-    private fun checkProfileStatus() {
-        val canUseWorkProfile = workProfileManager.canUseWorkProfileFeatures()
-        val exists = workProfileManager.checkIfProfileExists()
-
-        if (canUseWorkProfile) {
+    private fun checkProfileStatus(attemptRedirect: Boolean = false) {
+        if (workProfileManager.isProfileOwner()) {
             viewModel.setProfileStatus(ProfileStatus.CREATED)
-        } else if (!exists) {
-            viewModel.setProfileStatus(ProfileStatus.NOT_CREATED)
-        } else {
-            showExistingProfileUI()
+            return
+        }
+        if (attemptRedirect && workProfileManager.redirectToManagedProfile(requireActivity(), com.system.launcher.tools.MainActivity::class.java)) {
+            return
+        }
+        when (workProfileManager.connectionState()) {
+            WorkProfileConnectionState.CURRENT_PROFILE_OWNER -> viewModel.setProfileStatus(ProfileStatus.CREATED)
+            WorkProfileConnectionState.NO_PROFILE -> viewModel.setProfileStatus(ProfileStatus.NOT_CREATED)
+            WorkProfileConnectionState.CONNECTED_MANAGED_PROFILE,
+            WorkProfileConnectionState.OTHER_PROFILE_PRESENT -> {
+                viewModel.setProfileStatus(ProfileStatus.EXISTING_PROFILE_UNAVAILABLE)
+            }
         }
     }
 
     /**
-     * 显示现有 Profile 授权 UI
+     * Existing profiles cannot be adopted from another DPC. A connected
+     * VeilSpace profile can only be retried; an unrelated profile must first
+     * be removed through system settings.
      */
     private fun showExistingProfileUI() {
         binding.apply {
@@ -115,52 +136,52 @@ class OnboardingFragment : Fragment() {
             contentGroup.visibility = View.VISIBLE
             errorGroup.visibility = View.GONE
 
-            tvTitle.text = "检测到系统隐私空间"
-            tvDescription.text = "检测到您的手机已有隐私空间（如小米 XSpace）。\n\n" +
-                    "授权本应用管理该隐私空间，即可使用完整功能。"
-            btnCreateProfile.text = "授权管理"
+            val connected = workProfileManager.connectionState() == WorkProfileConnectionState.CONNECTED_MANAGED_PROFILE
+            tvTitle.text = if (connected) "工作资料暂时无法进入" else "检测到已有工作资料"
+            tvDescription.text = if (connected) {
+                "VeilSpace 已发现自己管理的工作资料，但本次跳转失败。工作资料可能处于暂停或尚未完成初始化状态。\n\n请恢复工作资料后重新连接。"
+            } else {
+                "设备上已有其他工作资料或系统分身空间。Android 不允许 VeilSpace 接管由其他管理器创建的资料。\n\n如果要由 VeilSpace 创建隐私空间，请先在系统设置中移除现有工作资料，再返回重新检测。"
+            }
+            btnCreateProfile.text = "尝试重新连接"
+            btnSkip.text = "重新检测"
             btnCreateProfile.visibility = View.VISIBLE
             btnSkip.visibility = View.VISIBLE
             SpaceUi.reveal(tvTitle)
             SpaceUi.reveal(tvDescription)
 
-            btnCreateProfile.setOnClickListener {
-                authorizeExistingProfile()
+            SpaceUi.setSafeClickListener(btnCreateProfile) {
+                retryProfileConnection(showFailure = true)
             }
+            SpaceUi.setSafeClickListener(btnSkip) { checkProfileStatus(attemptRedirect = false) }
         }
     }
 
-    /**
-     * 授权管理现有 Profile
-     */
-    private fun authorizeExistingProfile() {
-        val started = workProfileManager.becomeProfileOwner(requireActivity())
-        if (started) {
-            viewModel.setProfileStatus(ProfileStatus.CREATING)
-        } else {
-            viewModel.setProfileStatus(ProfileStatus.ERROR)
+    private fun retryProfileConnection(showFailure: Boolean) {
+        if (workProfileManager.isProfileOwner()) {
+            viewModel.setProfileStatus(ProfileStatus.CREATED)
+            return
         }
-    }
-
-    /**
-     * 手动标记工作资料已完成创建
-     * 用于 HyperOS 上系统已完成创建但主空间无法自动识别的场景
-     */
-    private fun markProfileReadyAndContinue() {
-        workProfileManager.markMainProfileReady()
-        viewModel.setProfileStatus(ProfileStatus.CREATED)
+        if (workProfileManager.redirectToManagedProfile(requireActivity(), com.system.launcher.tools.MainActivity::class.java)) {
+            return
+        }
+        checkProfileStatus(attemptRedirect = false)
+        if (showFailure && workProfileManager.connectionState() != WorkProfileConnectionState.NO_PROFILE) {
+            showSpaceMessage("未能连接工作资料，请确认资料已启用且由 VeilSpace 创建", long = true, error = true)
+        }
     }
 
     /**
      * 创建 Work Profile
      */
     private fun createWorkProfile() {
-        val started = workProfileManager.createProfile(requireActivity())
-        if (started) {
-            viewModel.setProfileStatus(ProfileStatus.CREATING)
-        } else {
+        val provisioningIntent = workProfileManager.createProfileIntent()
+        if (provisioningIntent == null) {
             viewModel.setProfileStatus(ProfileStatus.ERROR)
+            return
         }
+        viewModel.setProfileStatus(ProfileStatus.CREATING)
+        provisioningLauncher.launch(provisioningIntent)
     }
 
     /**
@@ -173,16 +194,16 @@ class OnboardingFragment : Fragment() {
             errorGroup.visibility = View.GONE
 
             tvTitle.text = "创建安全工作空间"
-            tvDescription.text = "为了保护您的隐私数据，需要创建一个独立的安全空间。这是一次性操作，只需几秒钟。\n\n如果您已经在系统页面完成创建，但应用仍未识别，可点击下方“我已完成创建”。"
+            tvDescription.text = "为了隔离应用和数据，需要由 VeilSpace 创建一个独立工作资料。这是一次性系统流程。\n\n完成系统步骤后返回应用，VeilSpace 会自动检测并连接，不需要手动标记授权。"
             btnCreateProfile.text = "创建安全空间"
-            btnSkip.text = "我已完成创建"
+            btnSkip.text = "重新检测"
             btnCreateProfile.visibility = View.VISIBLE
             btnSkip.visibility = View.VISIBLE
             SpaceUi.reveal(tvTitle)
             SpaceUi.reveal(tvDescription)
 
-            btnSkip.setOnClickListener {
-                markProfileReadyAndContinue()
+            SpaceUi.setSafeClickListener(btnSkip) {
+                retryProfileConnection(showFailure = true)
             }
         }
     }
@@ -215,20 +236,18 @@ class OnboardingFragment : Fragment() {
 
             tvErrorTitle.text = "创建失败"
             tvErrorMessage.text = "可能原因：\n" +
-                    "1. 设备已存在工作资料\n" +
-                    "2. 系统限制（部分厂商定制系统）\n" +
-                    "3. 权限不足\n\n" +
-                    "您可以尝试：\n" +
-                    "• 在系统设置中手动创建工作资料\n" +
-                    "• 联系设备厂商了解限制"
+                    "1. 设备已有其他管理器创建的工作资料\n" +
+                    "2. 系统或厂商禁止创建新的 Managed Profile\n" +
+                    "3. 系统流程被取消或尚未完成\n\n" +
+                    "请先检查系统中的工作资料状态，再重新检测或重试创建。"
 
-            btnRetry.setOnClickListener {
+            SpaceUi.setSafeClickListener(btnRetry) {
                 createWorkProfile()
             }
 
-            btnContinueWithoutProfile.text = "我已完成创建"
-            btnContinueWithoutProfile.setOnClickListener {
-                markProfileReadyAndContinue()
+            btnContinueWithoutProfile.text = "重新检测"
+            SpaceUi.setSafeClickListener(btnContinueWithoutProfile) {
+                retryProfileConnection(showFailure = true)
             }
             SpaceUi.reveal(tvErrorTitle)
             SpaceUi.reveal(tvErrorMessage)
@@ -240,25 +259,6 @@ class OnboardingFragment : Fragment() {
      */
     private fun navigateToHome() {
         findNavController().navigate(R.id.action_onboarding_to_home)
-    }
-
-    /**
-     * 处理 Activity Result
-     */
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        when (requestCode) {
-            WorkProfileManager.REQUEST_CODE_PROVISION_PROFILE,
-            WorkProfileManager.REQUEST_CODE_ENABLE_ADMIN -> {
-                if (resultCode == Activity.RESULT_OK || workProfileManager.canUseWorkProfileFeatures()) {
-                    workProfileManager.markMainProfileReady()
-                    viewModel.setProfileStatus(ProfileStatus.CREATED)
-                } else {
-                    viewModel.setProfileStatus(ProfileStatus.ERROR)
-                }
-            }
-        }
     }
 
     override fun onDestroyView() {
@@ -274,5 +274,6 @@ enum class ProfileStatus {
     NOT_CREATED,
     CREATING,
     CREATED,
+    EXISTING_PROFILE_UNAVAILABLE,
     ERROR
 }

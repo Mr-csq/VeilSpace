@@ -16,9 +16,13 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updateLayoutParams
 import com.system.launcher.tools.MainActivity
 import com.system.launcher.tools.databinding.ActivityDisguiseBinding
 import com.system.launcher.tools.work.WorkProfileManager
+import kotlin.math.roundToInt
 
 /**
  * 伪装入口：显示小米游戏中心网页，左上角热区三连击进入隐私空间。
@@ -31,6 +35,7 @@ class DisguiseActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "DisguiseActivity"
         private const val GAME_CENTER_URL = "https://game.xiaomi.com"
+        private const val STATUS_BAR_BLEND_DP = 20f
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +77,9 @@ class DisguiseActivity : AppCompatActivity() {
     private fun configureGradientSystemBars() {
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.WHITE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+        }
 
         var flags = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -84,12 +92,22 @@ class DisguiseActivity : AppCompatActivity() {
     }
 
     private fun applyStatusBarInset() {
-        val statusBarHeight = getStatusBarHeight()
-        binding.statusBarGradient.layoutParams = FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            statusBarHeight
-        )
-        (binding.gameCenterWebView.layoutParams as FrameLayout.LayoutParams).topMargin = statusBarHeight
+        ViewCompat.setOnApplyWindowInsetsListener(binding.hotZoneRoot) { _, windowInsets ->
+            val insetTop = windowInsets
+                .getInsets(WindowInsetsCompat.Type.statusBars())
+                .top
+                .takeIf { it > 0 }
+                ?: getStatusBarHeight()
+            val blendHeight = (STATUS_BAR_BLEND_DP * resources.displayMetrics.density).roundToInt()
+            binding.statusBarGradient.updateLayoutParams<FrameLayout.LayoutParams> {
+                height = insetTop + blendHeight
+            }
+            binding.gameCenterWebView.updateLayoutParams<FrameLayout.LayoutParams> {
+                topMargin = insetTop
+            }
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(binding.hotZoneRoot)
     }
 
     private fun getStatusBarHeight(): Int {

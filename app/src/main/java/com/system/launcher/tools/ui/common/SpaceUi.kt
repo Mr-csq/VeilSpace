@@ -1,11 +1,14 @@
 package com.system.launcher.tools.ui.common
 
 import android.os.Build
+import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.PathInterpolator
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.RecyclerView
@@ -15,6 +18,7 @@ import com.system.launcher.tools.R
 
 object SpaceUi {
     private val emphasized = PathInterpolator(0.2f, 0f, 0f, 1f)
+    private const val SAFE_CLICK_INTERVAL_MS = 650L
 
     fun reveal(view: View) {
         view.alpha = 0f
@@ -25,6 +29,24 @@ object SpaceUi {
             .setDuration(380L)
             .setInterpolator(emphasized)
             .start()
+    }
+
+    fun applySystemBarInsets(view: View) {
+        val initialLeft = view.paddingLeft
+        val initialTop = view.paddingTop
+        val initialRight = view.paddingRight
+        val initialBottom = view.paddingBottom
+        ViewCompat.setOnApplyWindowInsetsListener(view) { target, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            target.setPadding(
+                initialLeft + systemBars.left,
+                initialTop + systemBars.top,
+                initialRight + systemBars.right,
+                initialBottom + systemBars.bottom
+            )
+            insets
+        }
+        ViewCompat.requestApplyInsets(view)
     }
 
     fun attachPressScale(view: View, scale: Float = 0.97f) {
@@ -44,6 +66,20 @@ object SpaceUi {
                     .start()
             }
             false
+        }
+    }
+
+    fun setSafeClickListener(
+        view: View,
+        intervalMs: Long = SAFE_CLICK_INTERVAL_MS,
+        onClick: (View) -> Unit
+    ) {
+        var lastAcceptedClick = 0L
+        view.setOnClickListener { clickedView ->
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastAcceptedClick < intervalMs) return@setOnClickListener
+            lastAcceptedClick = now
+            onClick(clickedView)
         }
     }
 

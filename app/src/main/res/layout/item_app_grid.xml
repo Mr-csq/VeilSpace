@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.system.launcher.tools.ui.common.SquareMaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="126dp"
+    android:layout_height="wrap_content"
     android:layout_margin="4dp"
     android:clickable="true"
     android:focusable="true"
@@ -13,44 +13,52 @@
     app:strokeColor="@color/space_outline"
     app:strokeWidth="1dp">
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:paddingHorizontal="6dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="8dp">
+        android:layout_height="match_parent">
 
-        <ImageView
-            android:id="@+id/iv_app_icon"
-            android:layout_width="58dp"
-            android:layout_height="58dp"
-            android:contentDescription="应用图标"
-            android:scaleType="fitCenter" />
-
-        <TextView
-            android:id="@+id/tv_app_name"
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_marginTop="8dp"
-            android:layout_weight="1"
-            android:ellipsize="end"
-            android:gravity="center|top"
-            android:includeFontPadding="false"
-            android:maxLines="2"
-            android:textColor="@color/space_text_primary"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="8dp">
+
+            <ImageView
+                android:id="@+id/iv_app_icon"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:contentDescription="应用图标"
+                android:scaleType="fitCenter" />
+
+            <TextView
+                android:id="@+id/tv_app_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="@color/space_text_primary"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tv_app_status"
             android:layout_width="wrap_content"
             android:layout_height="18dp"
+            android:layout_gravity="top|end"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="5dp"
+            android:background="@drawable/bg_error_notice"
             android:gravity="center"
             android:includeFontPadding="false"
+            android:paddingHorizontal="5dp"
             android:textColor="@color/space_error"
             android:textSize="11sp"
             android:visibility="gone" />
-    </LinearLayout>
-</com.google.android.material.card.MaterialCardView>
+    </FrameLayout>
+</com.system.launcher.tools.ui.common.SquareMaterialCardView>
