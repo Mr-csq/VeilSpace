@@ -2,7 +2,6 @@ package com.system.launcher.tools.ui.files
 
 import android.graphics.Color
 import android.app.PendingIntent
-import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
@@ -64,10 +63,8 @@ class PersonalMediaImportActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false
@@ -97,10 +94,6 @@ class PersonalMediaImportActivity : AppCompatActivity() {
         }
 
         when {
-            state.unsupported -> {
-                binding.tvTitle.setText(R.string.media_import_unsupported_title)
-                binding.tvSummary.setText(R.string.media_import_unsupported_summary)
-            }
             state.operation == ProfileMediaTransferContract.Operation.MOVE && state.completed -> {
                 renderMoveCopyResult(state)
             }

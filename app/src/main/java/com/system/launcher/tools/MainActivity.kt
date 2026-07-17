@@ -1,7 +1,6 @@
 package com.system.launcher.tools
 
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
@@ -24,10 +23,8 @@ class MainActivity : AppCompatActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isStatusBarContrastEnforced = false
-            window.isNavigationBarContrastEnforced = false
-        }
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
         WindowCompat.getInsetsController(window, window.decorView).apply {
             isAppearanceLightStatusBars = false
             isAppearanceLightNavigationBars = false

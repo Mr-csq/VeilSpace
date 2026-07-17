@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.CrossProfileApps
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
@@ -61,7 +60,6 @@ class LauncherShortcutCleanupActivity : AppCompatActivity() {
     }
 
     private fun forwardToPersonalProfile(targetPackageName: String): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
         return runCatching {
             val crossProfileApps = getSystemService(CrossProfileApps::class.java)
             val currentUser = android.os.Process.myUserHandle()

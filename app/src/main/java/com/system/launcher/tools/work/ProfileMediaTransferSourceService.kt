@@ -7,7 +7,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.ResultReceiver
@@ -82,7 +81,6 @@ class ProfileMediaTransferSourceService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -132,34 +130,20 @@ class ProfileMediaTransferSourceService : Service() {
                     putParcelableArrayListExtra(EXTRA_SOURCE_URIS, ArrayList(uris))
                     putExtra(EXTRA_PREPARE_CALLBACK, callback)
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(intent)
-                } else {
-                    context.startService(intent)
-                }
+                context.startForegroundService(intent)
                 true
             }.onFailure { error ->
                 Log.e(TAG, "Unable to start media source service id=$transferId", error)
             }.getOrDefault(false)
         }
 
-        @Suppress("DEPRECATION")
         private fun Intent.resultReceiverExtra(name: String): ResultReceiver? {
             setExtrasClassLoader(ProfileMediaTransferSourceService::class.java.classLoader)
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getParcelableExtra(name, ResultReceiver::class.java)
-            } else {
-                getParcelableExtra(name)
-            }
+            return getParcelableExtra(name, ResultReceiver::class.java)
         }
 
-        @Suppress("DEPRECATION")
         private fun Intent.uriListExtra(name: String): List<Uri> {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getParcelableArrayListExtra(name, Uri::class.java).orEmpty()
-            } else {
-                getParcelableArrayListExtra<Uri>(name).orEmpty()
-            }
+            return getParcelableArrayListExtra(name, Uri::class.java).orEmpty()
         }
     }
 }

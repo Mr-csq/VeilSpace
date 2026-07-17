@@ -8,7 +8,6 @@ import android.database.Cursor
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
@@ -128,16 +127,12 @@ class FilesViewModel @Inject constructor(
     }
 
     private fun createBatchDeleteConfirmation(uris: List<Uri>, items: List<FileItem>): BatchDeleteResult.NeedsConfirmation? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
-                val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, uris)
-                BatchDeleteResult.NeedsConfirmation(pendingIntent.intentSender, items)
-            }.onFailure { error ->
-                Log.w(TAG, "MediaStore batch delete request failed", error)
-            }.getOrNull()
-        } else {
-            null
-        }
+        return runCatching {
+            val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, uris)
+            BatchDeleteResult.NeedsConfirmation(pendingIntent.intentSender, items)
+        }.onFailure { error ->
+            Log.w(TAG, "MediaStore batch delete request failed", error)
+        }.getOrNull()
     }
 
     private fun deleteFileInternal(item: FileItem): DeleteResult {
@@ -178,22 +173,18 @@ class FilesViewModel @Inject constructor(
         runCatching { resolver.delete(uri, null, null) }
             .onSuccess { rows -> if (rows > 0) return DeleteResult.Deleted }
             .onFailure { error ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && error is RecoverableSecurityException) {
+                if (error is RecoverableSecurityException) {
                     return DeleteResult.NeedsConfirmation(error.userAction.actionIntent.intentSender)
                 }
                 Log.w(TAG, "MediaStore direct delete failed uri=$uri", error)
             }
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            runCatching {
-                val pendingIntent = MediaStore.createDeleteRequest(resolver, listOf(uri))
-                DeleteResult.NeedsConfirmation(pendingIntent.intentSender)
-            }.onFailure { error ->
-                Log.w(TAG, "MediaStore delete request failed uri=$uri", error)
-            }.getOrDefault(DeleteResult.Failed)
-        } else {
-            DeleteResult.Failed
-        }
+        return runCatching {
+            val pendingIntent = MediaStore.createDeleteRequest(resolver, listOf(uri))
+            DeleteResult.NeedsConfirmation(pendingIntent.intentSender)
+        }.onFailure { error ->
+            Log.w(TAG, "MediaStore delete request failed uri=$uri", error)
+        }.getOrDefault(DeleteResult.Failed)
     }
 
     private fun scanProfileStorage(): FileSpaceState {
@@ -318,11 +309,7 @@ class FilesViewModel @Inject constructor(
     }
 
     private fun filesCollectionUri(): Uri {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        } else {
-            MediaStore.Files.getContentUri("external")
-        }
+        return MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
     }
 
     private fun Cursor.getStringOrNull(index: Int): String? {

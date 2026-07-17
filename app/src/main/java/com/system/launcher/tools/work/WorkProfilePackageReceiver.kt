@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.PackageManager.NameNotFoundException
-import android.os.Build
 import android.util.Log
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
@@ -71,12 +70,7 @@ class WorkProfilePackageReceiver : BroadcastReceiver() {
                 markUnverifiedIfCached(context, packageName, "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中")
                 return false
             }
-            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getApplicationInfo(packageName, flags)
-            }
+            val appInfo = pm.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
             if ((appInfo.flags and android.content.pm.ApplicationInfo.FLAG_INSTALLED) == 0) {
                 markUnverifiedIfCached(context, packageName, "缓存存在，但当前无法确认应用是否仍安装在隐藏空间中")
                 Log.w(TAG, "Skip caching metadata for not-installed-or-hidden profile package: $packageName")

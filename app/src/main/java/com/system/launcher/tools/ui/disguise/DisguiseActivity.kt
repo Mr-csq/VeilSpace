@@ -1,23 +1,22 @@
 package com.system.launcher.tools.ui.disguise
 
-import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.updateLayoutParams
 import com.system.launcher.tools.MainActivity
 import com.system.launcher.tools.databinding.ActivityDisguiseBinding
@@ -40,8 +39,6 @@ class DisguiseActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        Log.d(TAG, "DisguiseActivity onCreate")
         refreshManagedProfilePoliciesIfNeeded()
 
         binding = ActivityDisguiseBinding.inflate(layoutInflater)
@@ -50,6 +47,7 @@ class DisguiseActivity : AppCompatActivity() {
         applyStatusBarInset()
         setupHotZone()
         setupWebView()
+        setupBackNavigation()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -75,20 +73,15 @@ class DisguiseActivity : AppCompatActivity() {
     }
 
     private fun configureGradientSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.WHITE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isStatusBarContrastEnforced = false
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
         }
-
-        var flags = View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            flags = flags or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-        }
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = flags
     }
 
     private fun applyStatusBarInset() {
@@ -135,11 +128,6 @@ class DisguiseActivity : AppCompatActivity() {
                     request: WebResourceRequest
                 ): Boolean {
                     return handleNonHttpUrl(request.url)
-                }
-
-                @Deprecated("Deprecated in Java")
-                override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
-                    return handleNonHttpUrl(Uri.parse(url))
                 }
 
                 override fun onPageFinished(view: WebView, url: String) {
@@ -203,11 +191,7 @@ class DisguiseActivity : AppCompatActivity() {
             })();
         """.trimIndent()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            webView.evaluateJavascript(script, null)
-        } else {
-            webView.loadUrl("javascript:$script")
-        }
+        webView.evaluateJavascript(script, null)
     }
 
     private fun handleNonHttpUrl(uri: Uri): Boolean {
@@ -224,8 +208,6 @@ class DisguiseActivity : AppCompatActivity() {
     private fun openPrivacySpace() {
         if (hasOpenedPrivacySpace) return
         hasOpenedPrivacySpace = true
-
-        Log.d(TAG, "Triple tap detected, launching privacy space")
         val crossProfileIntent = Intent(WorkProfileManager.ACTION_OPEN_PRIVACY_SPACE).apply {
             addCategory(Intent.CATEGORY_DEFAULT)
             setPackage(packageName)
@@ -249,13 +231,16 @@ class DisguiseActivity : AppCompatActivity() {
         overridePendingTransition(0, 0)
     }
 
-    @SuppressLint("MissingSuperCall")
-    override fun onBackPressed() {
-        if (::binding.isInitialized && binding.gameCenterWebView.canGoBack()) {
-            binding.gameCenterWebView.goBack()
-        } else {
-            finishWithoutAnimation()
-        }
+    private fun setupBackNavigation() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (binding.gameCenterWebView.canGoBack()) {
+                    binding.gameCenterWebView.goBack()
+                } else {
+                    finishWithoutAnimation()
+                }
+            }
+        })
     }
 
     override fun onDestroy() {
@@ -263,7 +248,6 @@ class DisguiseActivity : AppCompatActivity() {
             binding.gameCenterWebView.destroy()
         }
         super.onDestroy()
-        Log.d(TAG, "DisguiseActivity onDestroy")
     }
 }
 

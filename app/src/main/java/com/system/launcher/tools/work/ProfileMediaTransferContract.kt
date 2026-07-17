@@ -2,7 +2,6 @@ package com.system.launcher.tools.work
 
 import android.app.PendingIntent
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.ResultReceiver
 
@@ -160,31 +159,16 @@ object ProfileMediaTransferContract {
         return sources.takeIf { it.size == names.size }
     }
 
-    @Suppress("DEPRECATION")
     private fun Intent.pendingIntentExtra(name: String): PendingIntent? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getParcelableExtra(name, PendingIntent::class.java)
-        } else {
-            getParcelableExtra(name)
-        }
+        return getParcelableExtra(name, PendingIntent::class.java)
     }
 
-    @Suppress("DEPRECATION")
     private fun Intent.resultReceiverExtra(name: String): ResultReceiver? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getParcelableExtra(name, ResultReceiver::class.java)
-        } else {
-            getParcelableExtra(name)
-        }
+        return getParcelableExtra(name, ResultReceiver::class.java)
     }
 
-        @Suppress("DEPRECATION")
     private fun Bundle.resultReceiver(name: String): ResultReceiver? {
         classLoader = ProfileMediaTransferContract::class.java.classLoader
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getParcelable(name, ResultReceiver::class.java)
-        } else {
-            getParcelable(name)
-        }
+        return getParcelable(name, ResultReceiver::class.java)
     }
 }

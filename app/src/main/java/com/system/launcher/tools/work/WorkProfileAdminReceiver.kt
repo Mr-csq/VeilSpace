@@ -45,7 +45,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
 
     /**
      * Profile 创建完成
-     * Android 7.0+ 支持
+     * Android 16 工作资料创建完成回调
      */
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         super.onProfileProvisioningComplete(context, intent)

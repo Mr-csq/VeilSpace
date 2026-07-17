@@ -1,6 +1,6 @@
 # 工作日应用策略自动化
 
-更新时间：2026-07-14
+更新时间：2026-07-17
 
 ## 产品语义
 
@@ -10,7 +10,7 @@
 
 1. 通过统一的 `ProfileAppKeepAliveController` 启用 VeilSpace `keepAlive`。
 2. 取消工作资料内的应用隐藏状态。
-3. Android 13+ 下检查 Profile Owner、应用安装状态和 `POST_NOTIFICATIONS` 声明，然后使用 `DevicePolicyManager.setPermissionGrantState` 授权通知。
+3. 检查 Profile Owner、应用安装状态和 `POST_NOTIFICATIONS` 声明，然后使用 `DevicePolicyManager.setPermissionGrantState` 授权通知。
 
 结束边界分别尝试：
 
@@ -41,8 +41,7 @@ https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
 
 ## 调度与补偿
 
-- Android 12 以下直接使用 `setExactAndAllowWhileIdle`。
-- Android 12+ 先检查 `canScheduleExactAlarms()`。
+- Android 16 先检查 `canScheduleExactAlarms()`，可用时调用 `setExactAndAllowWhileIdle`。
 - 未授权时使用可唤醒的非精确降级闹钟，界面明确标记“可能延迟”并提供系统授权入口。
 - 每次只安排下一边界；边界完成后再安排后续边界。
 - 开机、解锁、应用升级、时间/时区变化、工作资料可用/解锁及精确闹钟授权变化都会重新计算。
@@ -72,9 +71,9 @@ https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
 - `automation/AutomationCoordinator.kt`：保存基线、一次性补偿、逐应用执行和结果记录。
 - `automation/ExactAlarmScheduler.kt`：精确闹钟能力与降级。
 - `automation/ProfileAppKeepAliveController.kt`：手动和自动 keepAlive 的统一入口。
-- `automation/NotificationPermissionController.kt`：Android 13+ DPM 通知权限控制。
+- `automation/NotificationPermissionController.kt`：Android 16 DPM 通知权限控制。
 - `ui/automation/AutomationFragment.kt`：配置、能力状态、下一边界和结果展示。
 
 ## 验证状态
 
-2026-07-14：`AutomationScheduleCalculatorTest` 共 11 个 JVM 测试，全部通过。Debug 构建和 lint 均通过。尚未自动覆盖 AlarmManager、DevicePolicyManager、SharedPreferences 恢复、receiver 和 Profile Owner 真机链路。
+2026-07-17：`AutomationScheduleCalculatorTest` 共 11 个 JVM 测试，全部通过。Android 16 Debug 构建和 lint 均通过。尚未自动覆盖 AlarmManager、DevicePolicyManager、SharedPreferences 恢复、receiver 和 Profile Owner 真机链路。

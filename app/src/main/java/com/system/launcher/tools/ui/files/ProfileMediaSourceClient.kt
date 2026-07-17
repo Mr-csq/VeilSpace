@@ -1,6 +1,5 @@
 package com.system.launcher.tools.ui.files
 
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -105,13 +104,8 @@ class ProfileMediaSourceClient(
         private const val OPEN_TIMEOUT_MS = 15_000L
         private const val VERIFICATION_TIMEOUT_MS = 30_000L
 
-        @Suppress("DEPRECATION")
         private fun Bundle.parcelFileDescriptor(name: String): ParcelFileDescriptor? {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getParcelable(name, ParcelFileDescriptor::class.java)
-            } else {
-                getParcelable(name)
-            }
+            return getParcelable(name, ParcelFileDescriptor::class.java)
         }
     }
 }

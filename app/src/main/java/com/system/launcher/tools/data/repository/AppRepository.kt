@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.UserHandle
 import android.util.Log
 import com.system.launcher.tools.data.model.AppEntrySource
@@ -33,43 +32,6 @@ class AppRepository @Inject constructor(
 
     companion object {
         private const val TAG = "AppRepository"
-    }
-
-    private fun getCurrentUserInstalledApps(): List<AppInfo> {
-        val apps = mutableListOf<AppInfo>()
-
-        try {
-            val installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
-
-            for (appInfo in installedApps) {
-                if (!appInfo.isSystemApplication()) {
-                    try {
-                        val appName = packageManager.getApplicationLabel(appInfo).toString()
-                        val icon = packageManager.getApplicationIcon(appInfo)
-
-                        apps.add(
-                            AppInfo(
-                                packageName = appInfo.packageName,
-                                appName = appName,
-                                icon = icon,
-                                isSystemApp = false,
-                                entrySource = AppEntrySource.DISCOVERED_INSTALLED,
-                                installVerification = InstallVerification.CONFIRMED_INSTALLED,
-                                launchVerification = LaunchVerification.LAUNCHABLE
-                            )
-                        )
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error loading app: ${appInfo.packageName}", e)
-                    }
-                }
-            }
-
-            apps.sortBy { it.appName }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting installed apps", e)
-        }
-
-        return apps
     }
 
     private fun getLaunchableApps(
@@ -108,14 +70,10 @@ class AppRepository @Inject constructor(
 
     fun getInstalledProfileApps(userHandle: UserHandle? = null): List<AppInfo> {
         val profileUser = userHandle ?: android.os.Process.myUserHandle()
-        val launchableApps = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getLaunchableApps(
-                userHandle = profileUser,
-                includeSystemApps = true
-            )
-        } else {
-            getCurrentUserInstalledApps()
-        }
+        val launchableApps = getLaunchableApps(
+            userHandle = profileUser,
+            includeSystemApps = true
+        )
         val appsByPackage = launchableApps.associateBy { it.packageName }.toMutableMap()
 
         try {
@@ -194,12 +152,10 @@ class AppRepository @Inject constructor(
 
     private fun getApplicationInfoOrNull(packageName: String, flags: Int): ApplicationInfo? {
         return runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getApplicationInfo(packageName, flags)
-            }
+            packageManager.getApplicationInfo(
+                packageName,
+                PackageManager.ApplicationInfoFlags.of(flags.toLong())
+            )
         }.getOrNull()
     }
 
@@ -212,7 +168,10 @@ class AppRepository @Inject constructor(
             addCategory(Intent.CATEGORY_LAUNCHER)
             setPackage(packageName)
         }
-        packageManager.queryIntentActivities(intent, flags).firstOrNull()
+        packageManager.queryIntentActivities(
+            intent,
+            PackageManager.ResolveInfoFlags.of(flags.toLong())
+        ).firstOrNull()
     } catch (e: Exception) {
         Log.e(TAG, "Error resolving launcher activity for $packageName", e)
         null

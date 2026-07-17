@@ -3,7 +3,6 @@ package com.system.launcher.tools.work
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -206,14 +205,9 @@ class ProfileMediaTransferSourceSession private constructor(
             )
         }
 
-        @Suppress("DEPRECATION")
         private fun Bundle.resultReceiver(name: String): ResultReceiver? {
             classLoader = ProfileMediaTransferSourceSession::class.java.classLoader
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                getParcelable(name, ResultReceiver::class.java)
-            } else {
-                getParcelable(name)
-            }
+            return getParcelable(name, ResultReceiver::class.java)
         }
     }
 }

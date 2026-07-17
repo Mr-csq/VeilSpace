@@ -5,7 +5,6 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import com.system.launcher.tools.work.WorkProfileAdminReceiver
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -24,12 +23,6 @@ class NotificationPermissionController @Inject constructor(
         get() = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
 
     fun setNotificationsGranted(packageName: String, granted: Boolean): NotificationPermissionResult {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return NotificationPermissionResult(
-                AutomationOperationStatus.NOT_REQUIRED_ON_THIS_ANDROID_VERSION,
-                "Android 13 以下没有目标应用 POST_NOTIFICATIONS 运行时开关"
-            )
-        }
         if (!devicePolicyManager.isProfileOwnerApp(context.packageName)) {
             return NotificationPermissionResult(
                 AutomationOperationStatus.NO_PROFILE_OWNER,
@@ -37,7 +30,10 @@ class NotificationPermissionController @Inject constructor(
             )
         }
         val declared = runCatching {
-            val info = context.packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+            val info = context.packageManager.getPackageInfo(
+                packageName,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
+            )
             info.requestedPermissions.orEmpty().contains(Manifest.permission.POST_NOTIFICATIONS)
         }.getOrElse { error ->
             return NotificationPermissionResult(

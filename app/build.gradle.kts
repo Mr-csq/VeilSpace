@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.system.launcher.tools"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.system.launcher.tools"
-        minSdk = 26
-        targetSdk = 34
+        minSdk = 36
+        targetSdk = 36
         versionCode = 6
         versionName = "1.5"
 

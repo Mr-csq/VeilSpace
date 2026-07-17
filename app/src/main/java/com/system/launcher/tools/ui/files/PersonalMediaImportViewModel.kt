@@ -3,13 +3,11 @@ package com.system.launcher.tools.ui.files
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.provider.MediaStore
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -27,7 +25,6 @@ data class PersonalMediaImportState(
     val operation: ProfileMediaTransferContract.Operation = ProfileMediaTransferContract.Operation.COPY,
     val running: Boolean = false,
     val completed: Boolean = false,
-    val unsupported: Boolean = false,
     val total: Int = 0,
     val processed: Int = 0,
     val copied: Int = 0,
@@ -59,19 +56,6 @@ class PersonalMediaImportViewModel @Inject constructor(
     ) {
         if (started) return
         started = true
-
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            ProfileMediaSourceClient(sourceReceiver).closeSession()
-            _state.value = PersonalMediaImportState(
-                operation = operation,
-                completed = true,
-                unsupported = true,
-                total = sources.size,
-                processed = sources.size,
-                failed = sources.size
-            )
-            return
-        }
 
         viewModelScope.launch(Dispatchers.IO) {
             var copied = 0
@@ -149,7 +133,6 @@ class PersonalMediaImportViewModel @Inject constructor(
         return SourceMetadata(normalizedName, mimeType, expectedSize.coerceAtLeast(0L), kind)
     }
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     private suspend fun importMedia(
         sourceClient: ProfileMediaSourceClient,
         sourceIndex: Int,

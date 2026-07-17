@@ -16,14 +16,12 @@ import android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED
 import android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED
 import android.content.pm.PackageManager.DONT_KILL_APP
 import android.net.Uri
-import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
-import androidx.annotation.RequiresApi
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
@@ -107,15 +105,12 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context, WorkProfileAdminReceiver::class.java)
     }
 
-    @RequiresApi(Build.VERSION_CODES.P)
     private fun getCrossProfileApps(): CrossProfileApps {
         return context.getSystemService(CrossProfileApps::class.java)
     }
 
     fun checkIfProfileExists(): Boolean {
         return try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return false
-
             val currentUser = android.os.Process.myUserHandle()
             val launcherProfiles = launcherApps.profiles
             val otherLauncherProfiles = launcherProfiles.filter { it != currentUser }
@@ -148,10 +143,8 @@ class WorkProfileManager @Inject constructor(
             hideGameCenterProxyInProfile()
             showLauncherShortcutCleanupActivityInProfile()
             hidePersonalMediaImportActivityInProfile()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
-                Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
-            }
+            devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
+            Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
             devicePolicyManager.clearCrossProfileIntentFilters(admin)
             devicePolicyManager.addCrossProfileIntentFilter(
                 admin,
@@ -208,13 +201,11 @@ class WorkProfileManager @Inject constructor(
     }
 
     private fun clearProfileInstallRestrictions(admin: ComponentName) {
-        val restrictions = mutableListOf(
+        val restrictions = listOf(
             UserManager.DISALLOW_INSTALL_APPS,
-            UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
+            UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES,
+            UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY
         )
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            restrictions.add(UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES_GLOBALLY)
-        }
 
         restrictions.forEach { restriction ->
             runCatching {
@@ -242,7 +233,6 @@ class WorkProfileManager @Inject constructor(
     }
 
     fun hasCrossProfileTarget(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
         return runCatching {
             val currentUser = android.os.Process.myUserHandle()
             getCrossProfileApps().targetUserProfiles.any { it != currentUser }
@@ -253,8 +243,7 @@ class WorkProfileManager @Inject constructor(
 
     fun isProfileOwner(): Boolean {
         return try {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP &&
-                devicePolicyManager.isProfileOwnerApp(context.packageName)
+            devicePolicyManager.isProfileOwnerApp(context.packageName)
         } catch (e: Exception) {
             Log.e(TAG, "Error checking profile owner status", e)
             false
@@ -263,12 +252,8 @@ class WorkProfileManager @Inject constructor(
 
     fun getOtherProfileUserHandle(): UserHandle? {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val currentUser = android.os.Process.myUserHandle()
-                launcherApps.profiles.firstOrNull { it != currentUser }
-            } else {
-                null
-            }
+            val currentUser = android.os.Process.myUserHandle()
+            launcherApps.profiles.firstOrNull { it != currentUser }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting other profile user handle", e)
             null
@@ -279,7 +264,7 @@ class WorkProfileManager @Inject constructor(
 
     fun requestManagedProfileAvailable(userHandle: UserHandle? = getOtherProfileUserHandle()): Boolean {
         return try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P || userHandle == null) return false
+            if (userHandle == null) return false
             val currentlyQuiet = runCatching { userManager.isQuietModeEnabled(userHandle) }.getOrDefault(false)
             Log.i(TAG, "requestManagedProfileAvailable user=$userHandle quiet=$currentlyQuiet")
             if (currentlyQuiet) userManager.requestQuietModeEnabled(false, userHandle)
@@ -322,10 +307,6 @@ class WorkProfileManager @Inject constructor(
         resultCallback: android.app.PendingIntent?,
         onLaunchResult: (Boolean) -> Unit
     ): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            Log.w(TAG, "Reject media transfer: Android ${Build.VERSION.SDK_INT} is below API 29")
-            return false
-        }
         if (!isProfileOwner()) {
             Log.w(TAG, "Reject media transfer: current user is not Profile Owner")
             return false
@@ -383,15 +364,11 @@ class WorkProfileManager @Inject constructor(
                 }
 
                 val launched = runCatching {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        getCrossProfileApps().startActivity(
-                            Intent(importIntent).apply { component = getPersonalMediaImportComponent() },
-                            personalUser,
-                            activity
-                        )
-                    } else {
-                        activity.startActivity(Intent(importIntent).apply { setPackage(null) })
-                    }
+                    getCrossProfileApps().startActivity(
+                        Intent(importIntent).apply { component = getPersonalMediaImportComponent() },
+                        personalUser,
+                        activity
+                    )
                     Log.i(
                         TAG,
                         "Started personal-profile media transfer with isolated source id=$transferId operation=$operation count=${mediaUris.size} target=$personalUser"
@@ -422,15 +399,11 @@ class WorkProfileManager @Inject constructor(
 
     private fun findPersonalProfileTransferTarget(): UserHandle? {
         val currentUser = android.os.Process.myUserHandle()
-        val crossProfileTargets = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            runCatching { getCrossProfileApps().targetUserProfiles }
-                .onFailure { error ->
-                    Log.w(TAG, "Unable to read CrossProfileApps transfer targets", error)
-                }
-                .getOrDefault(emptyList())
-        } else {
-            emptyList()
-        }
+        val crossProfileTargets = runCatching { getCrossProfileApps().targetUserProfiles }
+            .onFailure { error ->
+                Log.w(TAG, "Unable to read CrossProfileApps transfer targets", error)
+            }
+            .getOrDefault(emptyList())
         val launcherProfiles = runCatching { launcherApps.profiles }
             .onFailure { error -> Log.w(TAG, "Unable to read LauncherApps transfer profiles", error) }
             .getOrDefault(emptyList())
@@ -441,7 +414,6 @@ class WorkProfileManager @Inject constructor(
     }
 
     private fun crossProfileTargetSnapshot(): List<UserHandle> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return emptyList()
         return runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
     }
 
@@ -452,11 +424,7 @@ class WorkProfileManager @Inject constructor(
         return try {
             if (isProfileOwner()) return false
             val currentUser = android.os.Process.myUserHandle()
-            val targetUsers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
-            } else {
-                emptyList()
-            }
+            val targetUsers = runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
             Log.i(TAG, "redirectToManagedProfile currentUser=$currentUser targetUsers=$targetUsers launcherProfiles=${launcherApps.profiles}")
             val workUser = targetUsers.firstOrNull { it != currentUser } ?: getOtherProfileUserHandle()
             if (workUser == null) {
@@ -469,7 +437,7 @@ class WorkProfileManager @Inject constructor(
             } else {
                 ComponentName(context, targetActivity)
             }
-            if (targetActivity.name == "${context.packageName}.MainActivity" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (targetActivity.name == "${context.packageName}.MainActivity") {
                 val explicitIntent = Intent(ACTION_OPEN_PRIVACY_SPACE).apply {
                     setComponent(getPrivacyActionComponent())
                     addCategory(Intent.CATEGORY_DEFAULT)
@@ -489,10 +457,8 @@ class WorkProfileManager @Inject constructor(
                         getCrossProfileApps().startMainActivity(component, workUser)
                     }
                 }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                getCrossProfileApps().startMainActivity(component, workUser)
             } else {
-                launcherApps.startMainActivity(component, workUser, null, null)
+                getCrossProfileApps().startMainActivity(component, workUser)
             }
             activity.finish()
             true
@@ -503,18 +469,14 @@ class WorkProfileManager @Inject constructor(
     }
 
     fun canRequestPackageInstalls(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O || packageManager.canRequestPackageInstalls()
+        return packageManager.canRequestPackageInstalls()
     }
 
     fun createUnknownAppSourcesIntent(): Intent? {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Intent(
-                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                Uri.parse("package:${context.packageName}")
-            )
-        } else {
-            null
-        }
+        return Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:${context.packageName}")
+        )
     }
 
     fun createApkInstallIntent(apkUri: Uri): Intent {
@@ -552,7 +514,6 @@ class WorkProfileManager @Inject constructor(
     }
 
     fun createProfileIntent(): Intent? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
         return try {
             if (checkIfProfileExists()) {
                 Log.w(TAG, "Work Profile already exists")
@@ -573,12 +534,8 @@ class WorkProfileManager @Inject constructor(
         return Intent(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE).apply {
             putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME, getAdminComponent())
             putExtra(DevicePolicyManager.EXTRA_PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME, context.packageName)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                putExtra(DevicePolicyManager.EXTRA_PROVISIONING_SKIP_ENCRYPTION, true)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                putExtra(DevicePolicyManager.EXTRA_PROVISIONING_SKIP_USER_CONSENT, true)
-            }
+            putExtra(DevicePolicyManager.EXTRA_PROVISIONING_SKIP_ENCRYPTION, true)
+            putExtra(DevicePolicyManager.EXTRA_PROVISIONING_SKIP_USER_CONSENT, true)
         }
     }
 
@@ -600,10 +557,6 @@ class WorkProfileManager @Inject constructor(
 
     fun enableAppInProfile(packageName: String): Boolean {
         return try {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-                Log.w(TAG, "installExistingPackage requires Android 9.0+")
-                return false
-            }
             if (!isProfileOwner()) {
                 Log.w(TAG, "Not Profile Owner, cannot install app into profile")
                 return false
@@ -1097,15 +1050,10 @@ class WorkProfileManager @Inject constructor(
         val flags = PackageManager.GET_META_DATA or
             PackageManager.MATCH_DISABLED_COMPONENTS or
             PackageManager.MATCH_UNINSTALLED_PACKAGES
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            packageManager.getApplicationInfo(
-                packageName,
-                PackageManager.ApplicationInfoFlags.of(flags.toLong())
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.getApplicationInfo(packageName, flags)
-        }
+        return packageManager.getApplicationInfo(
+            packageName,
+            PackageManager.ApplicationInfoFlags.of(flags.toLong())
+        )
     }
 
     private fun isPackageKnownInProfile(packageName: String): Boolean {
@@ -1113,13 +1061,9 @@ class WorkProfileManager @Inject constructor(
     }
     fun getLaunchIntent(packageName: String): Intent? {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                val launcherInfo = launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).firstOrNull()
-                if (launcherInfo != null) Intent().apply { component = launcherInfo.componentName }
-                else packageManager.getLaunchIntentForPackage(packageName)
-            } else {
-                packageManager.getLaunchIntentForPackage(packageName)
-            }
+            val launcherInfo = launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).firstOrNull()
+            if (launcherInfo != null) Intent().apply { component = launcherInfo.componentName }
+            else packageManager.getLaunchIntentForPackage(packageName)
         } catch (e: Exception) {
             Log.e(TAG, "Error getting launch intent for package: $packageName", e)
             null
@@ -1133,11 +1077,7 @@ class WorkProfileManager @Inject constructor(
     }
     private fun getPrimaryLauncherActivityInfo(packageName: String): LauncherActivityInfo? {
         return try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).firstOrNull()
-            } else {
-                null
-            }
+            launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).firstOrNull()
         } catch (e: Exception) {
             Log.e(TAG, "Error getting launcher activity for package: $packageName", e)
             null
@@ -1154,7 +1094,10 @@ class WorkProfileManager @Inject constructor(
                 addCategory(Intent.CATEGORY_LAUNCHER)
                 setPackage(packageName)
             }
-            packageManager.queryIntentActivities(intent, flags).isNotEmpty()
+            packageManager.queryIntentActivities(
+                intent,
+                PackageManager.ResolveInfoFlags.of(flags.toLong())
+            ).isNotEmpty()
         } catch (e: Exception) {
             Log.e(TAG, "Error resolving launcher activity in profile: $packageName", e)
             false
@@ -1163,7 +1106,7 @@ class WorkProfileManager @Inject constructor(
 
     fun canOpenFileManagerInProfile(packageName: String): Boolean {
         return try {
-            hasLauncherActivityInProfile(packageName) || createFileManagerRecentsIntents(packageName).any { intent ->
+            hasLauncherActivityInProfile(packageName) || createFileManagerBrowseIntents(packageName).any { intent ->
                 intent.resolveActivity(packageManager) != null
             }
         } catch (e: Exception) {
@@ -1209,7 +1152,7 @@ class WorkProfileManager @Inject constructor(
 
     private fun startLaunchableApp(packageName: String): Boolean {
         return when (ProfileAppPolicyTable.resolve(packageName).launchMode) {
-            ProfileAppLaunchMode.FILE_MANAGER_RECENTS -> startFileManagerAtRecents(packageName)
+            ProfileAppLaunchMode.FILE_MANAGER_BROWSER -> startFileManagerBrowser(packageName)
             ProfileAppLaunchMode.URI_THEN_COMPONENT -> startSpecialLaunchUri(packageName) || startSpecialLaunchComponent(packageName) || startLauncherActivity(packageName, allowPolicyFallback = false)
             ProfileAppLaunchMode.COMPONENT_THEN_URI -> startSpecialLaunchComponent(packageName) || startSpecialLaunchUri(packageName) || startLauncherActivity(packageName, allowPolicyFallback = false)
             ProfileAppLaunchMode.DEFAULT -> startLauncherActivity(packageName)
@@ -1218,7 +1161,7 @@ class WorkProfileManager @Inject constructor(
     private fun startLauncherActivity(packageName: String, allowPolicyFallback: Boolean = true): Boolean {
         return try {
             val launcherInfo = getPrimaryLauncherActivityInfo(packageName)
-            if (launcherInfo != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            if (launcherInfo != null) {
                 launcherApps.startMainActivity(
                     launcherInfo.componentName,
                     android.os.Process.myUserHandle(),
@@ -1247,19 +1190,17 @@ class WorkProfileManager @Inject constructor(
 
     private fun startSpecialLaunchComponent(packageName: String): Boolean {
         ProfileAppPolicyTable.resolve(packageName).launchComponents.forEach { component ->
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                try {
-                    launcherApps.startMainActivity(
-                        component,
-                        android.os.Process.myUserHandle(),
-                        null,
-                        null
-                    )
-                    Log.i(TAG, "Started app via policy LauncherApps component: $packageName component=$component")
-                    return true
-                } catch (e: Exception) {
-                    Log.w(TAG, "Policy LauncherApps component failed: $packageName component=$component", e)
-                }
+            try {
+                launcherApps.startMainActivity(
+                    component,
+                    android.os.Process.myUserHandle(),
+                    null,
+                    null
+                )
+                Log.i(TAG, "Started app via policy LauncherApps component: $packageName component=$component")
+                return true
+            } catch (e: Exception) {
+                Log.w(TAG, "Policy LauncherApps component failed: $packageName component=$component", e)
             }
 
             try {
@@ -1308,36 +1249,36 @@ class WorkProfileManager @Inject constructor(
         return false
     }
 
-    private fun createFileManagerRecentsIntents(packageName: String): List<Intent> {
+    private fun createFileManagerBrowseIntents(packageName: String): List<Intent> {
         return listOf(
-            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_APP_FILES)
                 setPackage(packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             },
-            Intent(Intent.ACTION_GET_CONTENT).apply {
-                addCategory(Intent.CATEGORY_OPENABLE)
-                type = "*/*"
+            Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LAUNCHER)
                 setPackage(packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            },
+            Intent(Intent.ACTION_MAIN).apply {
+                component = ComponentName(packageName, "com.android.documentsui.files.FilesActivity")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
         )
     }
-    private fun startFileManagerAtRecents(packageName: String): Boolean {
-        val intents = createFileManagerRecentsIntents(packageName)
+    private fun startFileManagerBrowser(packageName: String): Boolean {
+        val intents = createFileManagerBrowseIntents(packageName)
 
         intents.forEach { intent ->
             try {
                 if (intent.resolveActivity(packageManager) != null) {
                     context.startActivity(intent)
-                    Log.i(TAG, "Started file manager at recents: $packageName action=${intent.action}")
+                    Log.i(TAG, "Started file manager browser: $packageName action=${intent.action} component=${intent.component}")
                     return true
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "File manager recents intent failed: $packageName action=${intent.action}", e)
+                Log.w(TAG, "File manager browser intent failed: $packageName action=${intent.action}", e)
             }
         }
 
@@ -1350,7 +1291,10 @@ class WorkProfileManager @Inject constructor(
                 addCategory(Intent.CATEGORY_HOME)
             }
             val flags = PackageManager.MATCH_DEFAULT_ONLY
-            packageManager.queryIntentActivities(homeIntent, flags)
+            packageManager.queryIntentActivities(
+                homeIntent,
+                PackageManager.ResolveInfoFlags.of(flags.toLong())
+            )
                 .map { it.activityInfo.packageName }
                 .toSet() + setOf("com.miui.home")
         } catch (e: Exception) {
@@ -1605,7 +1549,7 @@ class WorkProfileManager @Inject constructor(
 
     private fun isUsageForegroundEvent(eventType: Int): Boolean {
         return eventType == UsageEvents.Event.MOVE_TO_FOREGROUND ||
-            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && eventType == UsageEvents.Event.ACTIVITY_RESUMED)
+            eventType == UsageEvents.Event.ACTIVITY_RESUMED
     }
 
     private fun isUsagePackageBackgroundEvent(eventType: Int): Boolean {

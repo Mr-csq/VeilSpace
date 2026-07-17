@@ -26,7 +26,7 @@ enum class ProfileAppResidualHideAction {
 
 enum class ProfileAppLaunchMode {
     DEFAULT,
-    FILE_MANAGER_RECENTS,
+    FILE_MANAGER_BROWSER,
     URI_THEN_COMPONENT,
     COMPONENT_THEN_URI
 }
@@ -183,7 +183,7 @@ object ProfileAppPolicyTable {
                     displayName = "文件",
                     role = ProfileAppRole.FILE_MANAGER,
                     knownLaunchTool = true,
-                    launchMode = ProfileAppLaunchMode.FILE_MANAGER_RECENTS,
+                    launchMode = ProfileAppLaunchMode.FILE_MANAGER_BROWSER,
                     systemCandidate = true
                 )
             )

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <style name="Base.Theme.PrivacySpace" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/space_primary</item>
         <item name="colorOnPrimary">@color/space_on_accent</item>
@@ -17,7 +17,7 @@
         <item name="android:windowBackground">@color/space_background</item>
         <item name="android:fontFamily">sans-serif</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/space_background_deep</item>
         <item name="android:windowActionModeOverlay">true</item>
@@ -45,7 +45,7 @@
         <item name="android:statusBarColor">@android:color/white</item>
         <item name="android:navigationBarColor">@android:color/white</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowIsTranslucent">false</item>
         <item name="android:backgroundDimEnabled">false</item>

@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.util.Log
 
 class ProfilePackageMonitor(private val context: Context) {
@@ -43,11 +42,7 @@ class ProfilePackageMonitor(private val context: Context) {
             addDataScheme("package")
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                appContext.registerReceiver(receiver, filter)
-            }
+            appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
             registered = true
             Log.i(TAG, "Runtime package monitor registered")
         } catch (e: Exception) {

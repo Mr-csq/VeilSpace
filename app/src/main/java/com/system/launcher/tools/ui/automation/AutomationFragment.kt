@@ -274,7 +274,6 @@ class AutomationFragment : Fragment() {
         AutomationOperationStatus.POLICY_NOT_ALLOWED -> "策略不允许"
         AutomationOperationStatus.NOT_INSTALLED -> "未安装"
         AutomationOperationStatus.NO_PROFILE_OWNER -> "无 Profile Owner"
-        AutomationOperationStatus.NOT_REQUIRED_ON_THIS_ANDROID_VERSION -> "低版本无需运行时权限"
         AutomationOperationStatus.NOT_DECLARED_BY_APP -> "应用未声明"
         AutomationOperationStatus.FAILED -> "失败"
     }

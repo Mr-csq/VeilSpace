@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
 import com.system.launcher.tools.work.ProfileMediaTransferContract
 
@@ -35,11 +34,7 @@ class ProfileMediaTransferResultReceiver : BroadcastReceiver() {
                 action = ProfileMediaTransferContract.ACTION_MEDIA_TRANSFER_RESULT
                 putExtra(ProfileMediaTransferContract.EXTRA_TRANSFER_ID, transferId)
             }
-            val flags = PendingIntent.FLAG_UPDATE_CURRENT or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                PendingIntent.FLAG_MUTABLE
-            } else {
-                0
-            }
+            val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             return PendingIntent.getBroadcast(context, transferId.hashCode(), intent, flags)
         }
     }

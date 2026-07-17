@@ -21,13 +21,11 @@
     <string name="media_import_complete_title">复制完成</string>
     <string name="media_import_partial_title">部分文件未能复制</string>
     <string name="media_import_failed_title">复制失败</string>
-    <string name="media_import_unsupported_title">当前系统不支持</string>
     <string name="media_import_preparing">正在准备媒体文件…</string>
     <string name="media_import_progress">已处理 %1$d/%2$d · 成功 %3$d</string>
     <string name="media_import_complete_summary">已复制 %1$d 个媒体文件</string>
     <string name="media_import_partial_summary">成功 %1$d 个，失败 %2$d 个</string>
     <string name="media_import_failed_summary">%1$d 个媒体文件均未复制</string>
-    <string name="media_import_unsupported_summary">复制到主空间需要 Android 10 或更高版本</string>
     <string name="media_import_invalid_summary">没有收到可复制的媒体文件</string>
     <string name="media_import_destination">图片：Pictures/VeilSpace · 视频：Movies/VeilSpace</string>
     <string name="media_import_failed_files">未复制：%1$s</string>

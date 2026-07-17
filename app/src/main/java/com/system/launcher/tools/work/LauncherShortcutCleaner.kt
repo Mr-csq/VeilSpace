@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
-import android.os.Build
 import android.util.Log
 import com.system.launcher.tools.data.policy.ProfileAppPolicyTable
 import com.system.launcher.tools.data.policy.ProfileAppResidualHideAction
@@ -102,12 +101,7 @@ object LauncherShortcutCleaner {
     private fun resolveApplicationLabel(context: Context, packageName: String): String? {
         return runCatching {
             val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_UNINSTALLED_PACKAGES
-            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getApplicationInfo(packageName, flags)
-            }
+            val appInfo = context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
             context.packageManager.getApplicationLabel(appInfo).toString()
         }.onFailure { error ->
             Log.i(TAG, "Unable to resolve shortcut label for package=$packageName error=${error.javaClass.simpleName}")
@@ -115,7 +109,6 @@ object LauncherShortcutCleaner {
     }
 
     private fun resolveLauncherAppsComponents(context: Context, packageName: String): List<ComponentName> {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return emptyList()
         return runCatching {
             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
             launcherApps.getActivityList(packageName, android.os.Process.myUserHandle())
@@ -140,12 +133,7 @@ object LauncherShortcutCleaner {
     }
 
     private fun queryIntentActivities(packageManager: PackageManager, intent: Intent, flags: Int): List<ResolveInfo> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(flags.toLong()))
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.queryIntentActivities(intent, flags)
-        }
+        return packageManager.queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(flags.toLong()))
     }
 
     private fun addDistinctComponent(components: MutableList<ComponentName>, component: ComponentName) {
@@ -183,12 +171,7 @@ object LauncherShortcutCleaner {
     private fun isInstalledInThisProfile(context: Context, packageName: String): Boolean {
         return try {
             val flags = PackageManager.MATCH_UNINSTALLED_PACKAGES
-            val appInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getApplicationInfo(packageName, flags)
-            }
+            val appInfo = context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
             (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_INSTALLED) != 0
         } catch (e: PackageManager.NameNotFoundException) {
             false

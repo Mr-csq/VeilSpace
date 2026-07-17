@@ -1,6 +1,5 @@
 package com.system.launcher.tools.ui.common
 
-import android.os.Build
 import android.os.SystemClock
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -123,10 +122,8 @@ fun Fragment.showSpaceMessage(message: CharSequence, long: Boolean = false, erro
 
 fun MaterialAlertDialogBuilder.showSpace() = create().also { dialog ->
     dialog.setOnShowListener {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-            dialog.window?.attributes = dialog.window?.attributes?.apply { blurBehindRadius = 48 }
-        }
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+        dialog.window?.attributes = dialog.window?.attributes?.apply { blurBehindRadius = 48 }
     }
     dialog.show()
 }

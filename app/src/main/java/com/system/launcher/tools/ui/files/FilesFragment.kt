@@ -6,7 +6,6 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.view.LayoutInflater
@@ -380,10 +379,6 @@ class FilesFragment : Fragment() {
     }
 
     private fun showTransferOptions() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-            showSpaceMessage("传输到主空间需要 Android 10 或更高版本", error = true)
-            return
-        }
         val items = selectedItems()
         if (items.isEmpty()) return
         if (items.any { it.type == FileType.OTHER }) {
@@ -635,14 +630,10 @@ class FilesFragment : Fragment() {
     }
 
     private fun requiredPermissions(): Array<String> {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            arrayOf(
-                Manifest.permission.READ_MEDIA_IMAGES,
-                Manifest.permission.READ_MEDIA_VIDEO
-            )
-        } else {
-            arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
+        return arrayOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO
+        )
     }
 
     private fun hasAllRequiredPermissions(): Boolean {

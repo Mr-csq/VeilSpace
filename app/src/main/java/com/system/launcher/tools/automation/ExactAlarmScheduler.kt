@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,11 +29,11 @@ class ExactAlarmScheduler @Inject constructor(
         get() = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun exactAlarmAvailable(): Boolean {
-        return Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+        return alarmManager.canScheduleExactAlarms()
     }
 
     fun createExactAlarmPermissionIntent(): Intent? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || exactAlarmAvailable()) return null
+        if (exactAlarmAvailable()) return null
         return Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
             data = Uri.parse("package:${context.packageName}")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -1,6 +1,6 @@
 # Work Profile 核心模块说明
 
-更新时间：2026-07-14
+更新时间：2026-07-17
 
 ## 模块定位
 
@@ -23,7 +23,7 @@ VeilSpace 使用 Android Managed Profile 隔离应用实例和数据。应用只
 - MIUI launcher shortcut 清理与重新查询。
 - keepAlive 关闭后的前台安全隐藏。
 
-API 28 的 `CrossProfileApps` 已隔离到带 `@RequiresApi(28)` 的获取方法，修复了此前 minSdk 26 直接初始化高版本类型的问题。该类仍然职责过重，应继续按 provisioning、跨资料导航、包控制、启动、可见性和 launcher 清理拆分。
+项目以 Android 16 / API 36 为唯一基线，`CrossProfileApps` 和现代 `PackageManager` API 均直接调用，不再保留旧系统分支。该类仍然职责过重，应继续按 provisioning、跨资料导航、包控制、启动、可见性和 launcher 清理拆分。
 
 ### `WorkProfileAdminReceiver`
 
@@ -114,13 +114,13 @@ MainActivity
 - `work_profile_prefs`：资料启用、provisioning 和活跃启动会话。
 - 应用缓存与策略分别由 `ProfileAppStore`、`ProfileAppPolicyStore` 保存。
 
-应用设置 `allowBackup=false`，旧式备份和 Android 12+ data extraction 规则也显式排除 root、files、database、shared preferences 和 external 数据。
+应用设置 `allowBackup=false`，备份和 data extraction 规则也显式排除 root、files、database、shared preferences 和 external 数据。
 
 这些状态尚未形成事务型单一事实源，卸载、策略变更和自动化跨多个 Store 更新时仍可能出现部分成功。
 
 ## 验收清单
 
-1. Android 8、9、12+ 与目标 HyperOS 的首次创建、取消和失败流程。
+1. Android 16 / 目标 HyperOS 的首次创建、取消和失败流程。
 2. 已有其他 DPC 资料时显示真实限制，不承诺可接管。
 3. 主资料不暴露真实入口，工作资料只显示预期伪装入口。
 4. 开机、应用更新、资料暂停/恢复后入口和自动化恢复。

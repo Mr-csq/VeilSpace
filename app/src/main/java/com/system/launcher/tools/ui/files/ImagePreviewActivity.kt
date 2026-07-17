@@ -3,8 +3,10 @@ package com.system.launcher.tools.ui.files
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.MotionEvent
-import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.PagerSnapHelper
 import androidx.recyclerview.widget.RecyclerView
@@ -22,10 +24,11 @@ class ImagePreviewActivity : AppCompatActivity() {
         binding = ActivityImagePreviewBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        window.decorView.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
 
         imagePaths = intent.getStringArrayListExtra(EXTRA_IMAGE_PATHS).orEmpty()
         val startIndex = intent.getIntExtra(EXTRA_START_INDEX, 0).coerceIn(0, (imagePaths.size - 1).coerceAtLeast(0))

@@ -6,7 +6,7 @@ import android.content.pm.LauncherApps
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
+import android.os.SystemClock
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -60,33 +60,49 @@ class HomeViewModel @Inject constructor(
     private var pendingApkInstallDiagnostic: String? = null
     private var pendingApkInstallBlocked: Boolean = false
     private var loadProfileAppsJob: Job? = null
+    private var loadProfileAppsRequestId = 0L
     private var lastSubmittedHomeAppsKey: List<HomeAppUiKey> = emptyList()
 
     fun loadProfileApps(forceSubmit: Boolean = false) {
+        if (loadProfileAppsJob?.isActive == true && !forceSubmit) {
+            Log.i(TAG, "Keep active home apps refresh instead of starting a duplicate request")
+            return
+        }
         loadProfileAppsJob?.cancel()
+        val requestId = ++loadProfileAppsRequestId
         loadProfileAppsJob = viewModelScope.launch {
+            val loadStartedAt = SystemClock.elapsedRealtime()
             _loading.value = true
             try {
-                val hasRenderedApps = !_profileApps.value.isNullOrEmpty()
                 val cachedApps = withContext(Dispatchers.IO) {
-                    ensureBaseEntriesCached()
+                    ensureInternalFileManagerCached()
                     ProfileAppStore.loadHomeApps(context)
                 }
-                if (!hasRenderedApps) {
-                    Log.i(TAG, "Defer first home apps submit until refresh completes count=${cachedApps.size}")
-                } else {
-                    Log.i(TAG, "Skip cached home apps submit before refresh count=${cachedApps.size} force=$forceSubmit")
-                }
+                submitHomeAppsIfChanged(
+                    cachedApps,
+                    forceSubmit = forceSubmit || _profileApps.value == null
+                )
+                Log.i(
+                    TAG,
+                    "Submitted cached home apps count=${cachedApps.size} elapsedMs=${SystemClock.elapsedRealtime() - loadStartedAt}"
+                )
 
                 val refreshedApps = withContext(Dispatchers.IO) {
+                    ensureSystemCandidateEntriesCached()
                     refreshCachedAppStates(cacheMissingIcons = true)
                     val refreshed = ProfileAppStore.loadHomeApps(context)
                     workProfileManager.rehideAppsInProfile(refreshed, "homeLoadProfileApps")
                     refreshed
                 }
-                submitHomeAppsIfChanged(refreshedApps, forceSubmit = forceSubmit || !hasRenderedApps)
+                submitHomeAppsIfChanged(refreshedApps, forceSubmit = forceSubmit)
+                Log.i(
+                    TAG,
+                    "Completed background home apps refresh count=${refreshedApps.size} elapsedMs=${SystemClock.elapsedRealtime() - loadStartedAt}"
+                )
             } finally {
-                _loading.value = false
+                if (requestId == loadProfileAppsRequestId) {
+                    _loading.value = false
+                }
             }
         }
     }
@@ -183,9 +199,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun ensureBaseEntriesCached() {
+    private fun ensureInternalFileManagerCached() {
         val existingApps = ProfileAppStore.loadApps(context).associateBy { it.packageName }
         ensureInternalFileManagerCached(existingApps[getInternalFileManagerPackageName()])
+    }
+
+    private fun ensureSystemCandidateEntriesCached() {
+        val existingApps = ProfileAppStore.loadApps(context).associateBy { it.packageName }
         val candidatesToUpsert = appRepository.getSystemCandidateApps()
             .filter { candidate -> shouldUpsertBaseEntry(existingApps[candidate.packageName], candidate) }
         if (candidatesToUpsert.isNotEmpty()) {
@@ -361,15 +381,10 @@ class HomeViewModel @Inject constructor(
             } ?: return null
 
             val pm = context.packageManager
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                pm.getPackageArchiveInfo(
-                    cacheFile.absolutePath,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong())
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                pm.getPackageArchiveInfo(cacheFile.absolutePath, PackageManager.GET_META_DATA)
-            } ?: return null
+            val packageInfo = pm.getPackageArchiveInfo(
+                cacheFile.absolutePath,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_META_DATA.toLong())
+            ) ?: return null
 
             updatePendingApkInstallDiagnostic(packageInfo)
 
@@ -396,7 +411,7 @@ class HomeViewModel @Inject constructor(
 
     private fun updatePendingApkInstallDiagnostic(apkPackageInfo: PackageInfo) {
         val installedVersion = getInstalledPackageVersion(apkPackageInfo.packageName) ?: return
-        val apkVersionCode = apkPackageInfo.longVersionCodeCompat()
+        val apkVersionCode = apkPackageInfo.longVersionCode
         if (installedVersion.versionCode == null) {
             pendingApkInstallBlocked = false
             pendingApkInstallDiagnostic = "检测到主空间已存在同包名应用：${apkPackageInfo.packageName}。\n\n当前系统可能按全局包版本判断安装结果；如果继续安装后提示无法降级，说明你选择的 APK 低于主空间已安装版本。\n\n建议使用同版本或更高版本 APK。"
@@ -409,19 +424,14 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun getInstalledPackageVersion(packageName: String): InstalledPackageVersion? {
-        getInstalledPackageInfo(packageName)?.let { packageInfo -> return InstalledPackageVersion(packageInfo.versionName, packageInfo.longVersionCodeCompat()) }
+        getInstalledPackageInfo(packageName)?.let { packageInfo -> return InstalledPackageVersion(packageInfo.versionName, packageInfo.longVersionCode) }
         return getPersonalProfilePackageVersion(packageName)
     }
 
     private fun getInstalledPackageInfo(packageName: String): PackageInfo? {
         val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_UNINSTALLED_PACKAGES
         return runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(packageName, flags)
-            }
+            context.packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
         }.getOrNull()
     }
 
@@ -465,13 +475,6 @@ class HomeViewModel @Inject constructor(
         }
     }
     private data class InstalledPackageVersion(val versionName: String?, val versionCode: Long?)
-
-    private fun PackageInfo.longVersionCodeCompat(): Long {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) longVersionCode else {
-            @Suppress("DEPRECATION")
-            versionCode.toLong()
-        }
-    }
 
     fun getPendingApkInstallDiagnostic(): String? = pendingApkInstallDiagnostic
 
