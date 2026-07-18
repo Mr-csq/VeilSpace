@@ -58,7 +58,9 @@ class ExactAlarmScheduler @Inject constructor(
                 exactAlarmAvailable(),
                 false,
                 null,
-                "当前法定工作日数据范围内没有可安排的下一边界"
+                calculator.unsupportedYearRequiringAttention(now.atZone(zoneId).toLocalDate())?.let { year ->
+                    "缺少 " + year + " 年法定节假日数据，暂时无法安排下一边界"
+                } ?: "当前法定工作日数据范围内没有可安排的下一边界"
             )
         val pendingIntent = boundaryPendingIntent(next)
         val exact = exactAlarmAvailable()

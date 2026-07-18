@@ -9,13 +9,13 @@ import android.widget.CompoundButton
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
-import com.google.android.material.checkbox.MaterialCheckBox
 import com.system.launcher.tools.automation.AutomationBoundaryType
 import com.system.launcher.tools.automation.AutomationConfig
 import com.system.launcher.tools.automation.AutomationDateMode
 import com.system.launcher.tools.automation.AutomationExecutionResult
 import com.system.launcher.tools.automation.AutomationOperationStatus
 import com.system.launcher.tools.databinding.FragmentAutomationBinding
+import com.system.launcher.tools.databinding.RowAutomationAppBinding
 import com.system.launcher.tools.ui.common.SpaceUi
 import com.system.launcher.tools.ui.common.showSpaceMessage
 import dagger.hilt.android.AndroidEntryPoint
@@ -32,6 +32,8 @@ class AutomationFragment : Fragment() {
     private val viewModel: AutomationViewModel by viewModels()
     private var draft = AutomationConfig()
     private var initialRenderComplete = false
+    private var detailsExpanded = false
+    private var workdayDataWarning: String? = null
     private val selectedPackages = linkedSetOf<String>()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -82,18 +84,25 @@ class AutomationFragment : Fragment() {
                     .onFailure { showSpaceMessage("系统未提供精确闹钟授权页面") }
             }
         }
+        SpaceUi.setSafeClickListener(binding.btnToggleDetails) {
+            detailsExpanded = !detailsExpanded
+            renderDetailsVisibility()
+        }
         SpaceUi.setSafeClickListener(binding.btnSave) { saveDraft() }
         SpaceUi.attachPressScale(binding.btnBack, 0.9f)
         SpaceUi.attachPressScale(binding.btnStartTime, 0.98f)
         SpaceUi.attachPressScale(binding.btnEndTime, 0.98f)
+        SpaceUi.attachPressScale(binding.btnToggleDetails, 0.98f)
         SpaceUi.attachPressScale(binding.btnSave, 0.98f)
     }
 
     private fun observeState() {
         viewModel.state.observe(viewLifecycleOwner) { state ->
             draft = state.automation.config
+            workdayDataWarning = state.automation.workdayDataWarning
             selectedPackages.clear()
-            selectedPackages += draft.selectedPackages
+            val visiblePackages = state.apps.mapTo(hashSetOf()) { it.packageName }
+            selectedPackages += draft.selectedPackages.filter { it in visiblePackages }
             renderConfig()
             renderApps(state.apps)
             renderRuntimeState(state)
@@ -127,44 +136,50 @@ class AutomationFragment : Fragment() {
         } else {
             View.GONE
         }
+        val warning = workdayDataWarning.takeIf {
+            draft.dateMode == AutomationDateMode.CHINA_LEGAL_WORKDAY
+        }
+        binding.tvWorkdayWarning.text = warning.orEmpty()
+        binding.tvWorkdayWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
     }
 
     private fun renderApps(apps: List<AutomationAppChoice>) {
         binding.appsContainer.removeAllViews()
-        apps.forEach { choice ->
-            val checkBox = MaterialCheckBox(requireContext()).apply {
-                text = buildString {
-                    append(choice.appName)
-                    append("\n")
-                    append(choice.packageName)
-                    choice.unavailableReason?.let { append(" · ").append(it) }
+        binding.tvAppsEmpty.visibility = if (apps.isEmpty()) View.VISIBLE else View.GONE
+        apps.forEachIndexed { index, choice ->
+            val row = RowAutomationAppBinding.inflate(layoutInflater, binding.appsContainer, false)
+            val selected = choice.packageName in selectedPackages
+            row.appName.text = choice.appName
+            row.appSummary.text = choice.unavailableReason?.let { choice.packageName + " · " + it }
+                ?: choice.packageName
+            row.appIcon.setImageDrawable(
+                choice.icon ?: requireContext().getDrawable(com.system.launcher.tools.R.drawable.ic_app_icon)
+            )
+            row.appSwitch.isChecked = selected
+            row.appSwitch.isEnabled = choice.eligible || selected
+            row.rowContent.alpha = if (choice.eligible || selected) 1f else 0.58f
+            row.divider.visibility = if (index == apps.lastIndex) View.GONE else View.VISIBLE
+
+            row.appSwitch.setOnCheckedChangeListener { button, checked ->
+                if (checked) {
+                    selectedPackages += choice.packageName
+                } else {
+                    selectedPackages -= choice.packageName
+                    if (!choice.eligible) button.isEnabled = false
                 }
-                setTextColor(resources.getColor(com.system.launcher.tools.R.color.space_text_primary, context.theme))
-                textSize = 13f
-                setPadding(0, 7.dp(), 0, 7.dp())
-                isChecked = choice.packageName in selectedPackages
-                alpha = if (choice.eligible) 1f else 0.68f
-                isEnabled = choice.eligible || isChecked
-                setOnCheckedChangeListener { button, checked ->
-                    if (checked && !choice.eligible) {
-                        button.isChecked = false
-                        button.isEnabled = false
-                        selectedPackages.remove(choice.packageName)
-                        showSpaceMessage(choice.unavailableReason ?: "该应用不支持自动化")
-                    } else if (checked) {
-                        selectedPackages += choice.packageName
-                    } else {
-                        selectedPackages -= choice.packageName
-                        if (!choice.eligible) button.isEnabled = false
-                    }
-                    updateSelectedSummary()
+                updateSelectedSummary()
+            }
+            SpaceUi.setSafeClickListener(row.rowContent) {
+                if (row.appSwitch.isEnabled) {
+                    row.appSwitch.isChecked = !row.appSwitch.isChecked
+                } else {
+                    showSpaceMessage(choice.unavailableReason ?: "该应用不支持工作模式")
                 }
             }
-            binding.appsContainer.addView(checkBox)
+            binding.appsContainer.addView(row.root)
         }
         updateSelectedSummary()
     }
-
     private fun renderRuntimeState(state: AutomationScreenState) {
         val automation = state.automation
         val latest = automation.scheduleSnapshot.latestBoundary
@@ -188,6 +203,12 @@ class AutomationFragment : Fragment() {
             metadata.sourceUrl
         )
         binding.tvLastResult.text = formatLastResult(automation.lastResult)
+        renderDetailsVisibility()
+    }
+
+    private fun renderDetailsVisibility() {
+        binding.detailsContainer.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
+        binding.btnToggleDetails.text = if (detailsExpanded) "收起运行与权限详情" else "查看运行与权限详情"
     }
 
     private fun saveDraft() {
@@ -284,7 +305,6 @@ class AutomationFragment : Fragment() {
         return DATE_TIME_FORMATTER.format(instant.atZone(ZoneId.systemDefault()))
     }
 
-    private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
 
     override fun onDestroyView() {
         super.onDestroyView()

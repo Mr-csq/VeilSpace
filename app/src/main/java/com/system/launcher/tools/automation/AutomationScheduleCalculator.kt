@@ -71,4 +71,18 @@ class AutomationScheduleCalculator(
     fun isOfficialDataAvailableFor(date: LocalDate): Boolean {
         return workdayProvider.classify(date) != WorkdayClassification.UNKNOWN
     }
+
+    fun unsupportedYearRequiringAttention(date: LocalDate): Int? {
+        val supportedYears = workdayProvider.metadata.supportedYears
+        if (date.year !in supportedYears) return date.year
+
+        val latestSupportedYear = supportedYears.maxOrNull() ?: return date.year
+        val nextYear = latestSupportedYear + 1
+        val reminderStart = LocalDate.of(latestSupportedYear, 11, 1)
+        return nextYear.takeIf {
+            date.year == latestSupportedYear &&
+                !date.isBefore(reminderStart) &&
+                nextYear !in supportedYears
+        }
+    }
 }

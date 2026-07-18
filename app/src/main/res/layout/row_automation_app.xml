@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/row_content"
+        android:layout_width="match_parent"
+        android:layout_height="76dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:foreground="?attr/selectableItemBackground"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <FrameLayout
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_action_sheet_icon"
+            android:padding="7dp">
+
+            <ImageView
+                android:id="@+id/app_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:scaleType="fitCenter" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/app_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/space_text_primary"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/app_summary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/space_text_secondary"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/app_switch"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:contentDescription="启用此应用的工作模式" />
+    </LinearLayout>
+
+    <View
+        android:id="@+id/divider"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="58dp"
+        android:background="@color/space_divider" />
+</LinearLayout>

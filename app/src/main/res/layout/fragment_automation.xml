@@ -54,6 +54,14 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:text="@string/automation_title" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="按计划管理后台运行与通知"
+                    android:textColor="@color/space_text_secondary"
+                    android:textSize="13sp" />
             </LinearLayout>
         </LinearLayout>
 
@@ -70,16 +78,347 @@
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
                 android:paddingStart="16dp"
+                android:paddingTop="8dp"
                 android:paddingEnd="16dp"
-                android:paddingBottom="28dp">
+                android:paddingBottom="32dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_glass_panel"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <FrameLayout
+                            android:layout_width="46dp"
+                            android:layout_height="46dp"
+                            android:layout_marginEnd="13dp"
+                            android:background="@drawable/bg_action_sheet_icon">
+
+                            <ImageView
+                                android:layout_width="23dp"
+                                android:layout_height="23dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="@null"
+                                android:src="@drawable/ic_schedule_24"
+                                app:tint="@color/space_secondary_bright" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                style="@style/TextAppearance.PrivacySpace.SectionTitle"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/automation_master_switch" />
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="3dp"
+                                android:text="@string/automation_master_summary"
+                                android:textColor="@color/space_text_secondary"
+                                android:textSize="12sp" />
+                        </LinearLayout>
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switch_enabled"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:contentDescription="@string/automation_enable_description" />
+                    </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="14dp"
+                        android:background="@color/space_divider" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/automation_current_state"
+                        android:textColor="@color/space_text_secondary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_current_state"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        tools:text="计划处于关闭时段" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="13dp"
+                        android:text="@string/automation_next_execution"
+                        android:textColor="@color/space_text_secondary"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_next_boundary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:textColor="@color/space_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold"
+                        tools:text="开始 · 2026-07-20 周一 09:00" />
+                </LinearLayout>
+
+                <TextView
+                    style="@style/TextAppearance.PrivacySpace.SectionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="24dp"
+                    android:text="@string/automation_plan_section" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginTop="4dp"
+                    android:layout_marginBottom="10dp"
+                    android:text="@string/automation_plan_summary"
+                    android:textColor="@color/space_text_secondary"
+                    android:textSize="12sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_glass_panel"
+                    android:orientation="vertical"
                     android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/automation_boundary_time"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="5dp"
+                                android:text="@string/automation_start_time"
+                                android:textColor="@color/space_text_secondary"
+                                android:textSize="11sp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_start_time"
+                                style="@style/Widget.PrivacySpace.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/automation_default_start_time" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="5dp"
+                                android:text="@string/automation_end_time"
+                                android:textColor="@color/space_text_secondary"
+                                android:textSize="11sp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btn_end_time"
+                                style="@style/Widget.PrivacySpace.TonalButton"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/automation_default_end_time" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_time_hint"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="7dp"
+                        android:textColor="@color/space_text_secondary"
+                        android:textSize="11sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="15dp"
+                        android:layout_marginBottom="14dp"
+                        android:background="@color/space_divider" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/automation_date_mode"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <RadioGroup
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:orientation="vertical">
+
+                        <RadioButton
+                            android:id="@+id/radio_china_workday"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="48dp"
+                            android:text="@string/automation_china_workday"
+                            android:textColor="@color/space_text_primary"
+                            android:textSize="13sp" />
+
+                        <RadioButton
+                            android:id="@+id/radio_custom_weekdays"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:minHeight="48dp"
+                            android:text="@string/automation_custom_weekdays"
+                            android:textColor="@color/space_text_primary"
+                            android:textSize="13sp" />
+                    </RadioGroup>
+
+                    <LinearLayout
+                        android:id="@+id/custom_weekdays_container"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <CheckBox
+                                android:id="@+id/check_monday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_monday" />
+
+                            <CheckBox
+                                android:id="@+id/check_tuesday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_tuesday" />
+
+                            <CheckBox
+                                android:id="@+id/check_wednesday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_wednesday" />
+
+                            <CheckBox
+                                android:id="@+id/check_thursday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_thursday" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <CheckBox
+                                android:id="@+id/check_friday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_friday" />
+
+                            <CheckBox
+                                android:id="@+id/check_saturday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_saturday" />
+
+                            <CheckBox
+                                android:id="@+id/check_sunday"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/automation_weekday_sunday" />
+
+                            <Space
+                                android:layout_width="0dp"
+                                android:layout_height="1dp"
+                                android:layout_weight="1" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tv_workday_warning"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:background="@drawable/bg_warning_notice"
+                        android:drawableStart="@drawable/ic_warning_24"
+                        android:drawablePadding="9dp"
+                        android:drawableTint="@color/space_warning"
+                        android:gravity="center_vertical"
+                        android:padding="12dp"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="12sp"
+                        android:visibility="gone"
+                        tools:text="2027 年法定节假日安排尚未内置，请在年底更新应用。"
+                        tools:visibility="visible" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="24dp"
+                    android:gravity="bottom"
+                    android:orientation="horizontal"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="4dp">
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -91,279 +430,197 @@
                             style="@style/TextAppearance.PrivacySpace.SectionTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/automation_master_switch" />
+                            android:text="@string/automation_selected_apps" />
 
                         <TextView
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="5dp"
-                            android:text="@string/automation_master_summary"
+                            android:layout_marginTop="4dp"
+                            android:text="@string/automation_apps_summary"
                             android:textColor="@color/space_text_secondary"
-                            android:textSize="13sp" />
+                            android:textSize="12sp" />
                     </LinearLayout>
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switch_enabled"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:contentDescription="@string/automation_enable_description" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_glass_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        style="@style/TextAppearance.PrivacySpace.SectionTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/automation_current_state" />
-
-                    <TextView
-                        android:id="@+id/tv_current_state"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:textColor="@color/space_text_primary"
-                        android:textSize="14sp"
-                        tools:text="计划处于关闭时段" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/automation_next_execution"
-                        android:textColor="@color/space_text_secondary"
-                        android:textSize="12sp" />
-
-                    <TextView
-                        android:id="@+id/tv_next_boundary"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textColor="@color/space_primary"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        tools:text="开始 · 2026-07-15 周三 09:00" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_glass_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        style="@style/TextAppearance.PrivacySpace.SectionTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/automation_boundary_time" />
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btn_start_time"
-                            style="@style/Widget.PrivacySpace.TonalButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:text="@string/automation_default_start_time" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btn_end_time"
-                            style="@style/Widget.PrivacySpace.TonalButton"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:text="@string/automation_default_end_time" />
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tv_time_hint"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:textColor="@color/space_text_secondary"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_glass_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        style="@style/TextAppearance.PrivacySpace.SectionTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/automation_date_mode" />
-
-                    <RadioGroup
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:orientation="vertical">
-
-                        <RadioButton
-                            android:id="@+id/radio_china_workday"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/automation_china_workday"
-                            android:textColor="@color/space_text_primary" />
-
-                        <RadioButton
-                            android:id="@+id/radio_custom_weekdays"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:text="@string/automation_custom_weekdays"
-                            android:textColor="@color/space_text_primary" />
-                    </RadioGroup>
-
-                    <LinearLayout
-                        android:id="@+id/custom_weekdays_container"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <CheckBox android:id="@+id/check_monday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_monday" />
-                            <CheckBox android:id="@+id/check_tuesday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_tuesday" />
-                            <CheckBox android:id="@+id/check_wednesday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_wednesday" />
-                            <CheckBox android:id="@+id/check_thursday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_thursday" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <CheckBox android:id="@+id/check_friday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_friday" />
-                            <CheckBox android:id="@+id/check_saturday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_saturday" />
-                            <CheckBox android:id="@+id/check_sunday" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/automation_weekday_sunday" />
-                            <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <TextView
-                        android:id="@+id/tv_workday_data"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:textColor="@color/space_text_secondary"
-                        android:textIsSelectable="true"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_glass_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        style="@style/TextAppearance.PrivacySpace.SectionTitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/automation_selected_apps" />
 
                     <TextView
                         android:id="@+id/tv_selected_summary"
-                        android:layout_width="match_parent"
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:textColor="@color/space_text_secondary"
-                        android:textSize="13sp" />
+                        android:layout_marginStart="12dp"
+                        android:textColor="@color/space_primary"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        tools:text="已开启 3 个" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_glass_panel"
+                    android:orientation="vertical"
+                    android:paddingStart="14dp"
+                    android:paddingTop="6dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="8dp">
 
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="5dp"
-                        android:text="@string/automation_notification_capability"
+                        android:paddingTop="6dp"
+                        android:paddingBottom="4dp"
+                        android:text="@string/automation_apps_order_hint"
                         android:textColor="@color/space_text_secondary"
-                        android:textSize="12sp" />
+                        android:textSize="11sp" />
 
                     <LinearLayout
                         android:id="@+id/apps_container"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
                         android:orientation="vertical" />
+
+                    <TextView
+                        android:id="@+id/tv_apps_empty"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center"
+                        android:paddingTop="26dp"
+                        android:paddingBottom="24dp"
+                        android:text="@string/automation_apps_empty"
+                        android:textColor="@color/space_text_secondary"
+                        android:textSize="13sp"
+                        android:visibility="gone"
+                        tools:visibility="visible" />
                 </LinearLayout>
 
-                <LinearLayout
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_toggle_details"
+                    style="@style/Widget.PrivacySpace.TonalButton"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="18dp"
+                    android:text="查看运行与权限详情"
+                    app:icon="@drawable/ic_info_24"
+                    app:iconGravity="textStart"
+                    app:iconTint="@color/space_primary" />
+
+                <LinearLayout
+                    android:id="@+id/details_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
                     android:background="@drawable/bg_glass_panel"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="16dp"
+                    android:visibility="gone">
 
                     <TextView
                         style="@style/TextAppearance.PrivacySpace.SectionTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/automation_exact_alarm" />
+                        android:text="@string/automation_runtime_details" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/automation_runtime_details_summary"
+                        android:textColor="@color/space_text_secondary"
+                        android:textSize="12sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="13dp"
+                        android:background="@color/space_divider" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/automation_exact_alarm"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tv_exact_status"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="7dp"
+                        android:layout_marginTop="5dp"
                         android:textColor="@color/space_text_secondary"
-                        android:textSize="13sp" />
+                        android:textSize="12sp" />
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btn_exact_permission"
                         style="@style/Widget.PrivacySpace.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="2dp"
                         android:text="@string/automation_exact_alarm_permission" />
-                </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_glass_panel"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="13dp"
+                        android:background="@color/space_divider" />
 
                     <TextView
-                        style="@style/TextAppearance.PrivacySpace.SectionTitle"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/automation_last_result" />
+                        android:text="@string/automation_workday_data"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_workday_data"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:textColor="@color/space_text_secondary"
+                        android:textIsSelectable="true"
+                        android:textSize="11sp" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginBottom="13dp"
+                        android:background="@color/space_divider" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/automation_last_result"
+                        android:textColor="@color/space_text_primary"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
 
                     <TextView
                         android:id="@+id/tv_last_result"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
+                        android:layout_marginTop="6dp"
                         android:textColor="@color/space_text_secondary"
                         android:textIsSelectable="true"
-                        android:textSize="12sp" />
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="13dp"
+                        android:text="@string/automation_notification_capability"
+                        android:textColor="@color/space_text_tertiary"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="7dp"
+                        android:text="@string/automation_keep_alive_explanation"
+                        android:textColor="@color/space_text_tertiary"
+                        android:textSize="11sp" />
                 </LinearLayout>
 
                 <TextView
@@ -384,15 +641,6 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
                     android:text="@string/automation_save" />
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:gravity="center"
-                    android:text="@string/automation_keep_alive_explanation"
-                    android:textColor="@color/space_text_secondary"
-                    android:textSize="12sp" />
             </LinearLayout>
         </androidx.core.widget.NestedScrollView>
     </LinearLayout>

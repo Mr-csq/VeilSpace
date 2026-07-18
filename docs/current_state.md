@@ -1,6 +1,6 @@
 # VeilSpace 当前项目状态
 
-更新时间：2026-07-17（Android 16 基线升级）
+更新时间：2026-07-18（工作模式与年度数据维护）
 
 本文档以当前工作区源码为事实来源，用于开发交接。当前分支仍是 `main`，大量功能和 UI 调整尚未提交，继续修改前必须先查看 `git status` 与 `git diff`。
 
@@ -17,11 +17,11 @@ VeilSpace 基于 Android Work Profile / Managed Profile 实现隐私空间：
 
 它不是文件级加密容器；keepAlive 也不等于 MIUI 电池无限制、自启动或进程常驻。
 
-包名为 `com.system.launcher.tools`；minSdk / targetSdk / compileSdk 均为 36；版本为 1.5（versionCode 6）。
+包名为 `com.system.launcher.tools`；minSdk / targetSdk / compileSdk 均为 36；版本为 1.6（versionCode 7）。
 
 平台支持策略：项目只维护 Android 16 / API 36 及以上版本，不再保留 Android 15 及以下的运行时版本判断、旧 API 重载、旧存储权限或功能降级分支。后续功能默认直接使用 API 36 能力；如需降低最低版本，必须先恢复并验证完整兼容矩阵。
 
-构建工具基线为 Android Gradle Plugin 8.10.1、Gradle 8.11.1 和 JDK 17。
+构建工具基线为 Android Gradle Plugin 8.10.1、Gradle 8.11.1 和 JDK 17。所有构建在 `preBuild` 前校验唯一正式图标 `drawable/ic_app_icon.png` 的 SHA-256，防止误用旧图标。
 
 ## 2. 当前规模与架构
 
@@ -135,18 +135,18 @@ HyperOS 3 的 `CrossProfileApps.startActivity(Intent, ...)` 会在持有 WindowM
 - Profile Owner 暂不可用时保留未完成结果，资料恢复后补偿。
 - Android 16 无精确闹钟权限时降级为非精确唤醒闹钟。
 - 开机、解锁、升级、时间/时区变化、资料恢复和权限变化时重新计算。
-- 法定工作日表覆盖 2024—2026；未知年份返回 `UNKNOWN`，不猜测。
+- 法定工作日表仅保留当前有用的 2026 权威数据；2024/2025 已裁剪。未知年份返回 `UNKNOWN`，不猜测；若 2027 数据仍未内置，从 2026-11-01 起在工作模式页面提前提示。
 
 ### 测试与剩余边界
 
-已有 11 个 JVM 测试覆盖节假日、调休、跨午夜、下一边界、非法配置、幂等、revision 和手动覆盖语义；另有 4 个测试覆盖 Work Profile 四态连接决策，3 个覆盖跨资料目标选择，4 个覆盖媒体文件名规则，4 个覆盖安全移动结果规则。
+已有 13 个 JVM 测试覆盖节假日、过期年份裁剪、2027 提前预警、调休、跨午夜、下一边界、非法配置、幂等、revision 和手动覆盖语义；另有 4 个测试覆盖 Work Profile 四态连接决策，3 个覆盖跨资料目标选择，4 个覆盖媒体文件名规则，4 个覆盖安全移动结果规则。
 
 尚未覆盖 Coordinator、SharedPreferences 迁移、AlarmManager、DPM 通知权限、receiver 恢复和 Profile Owner 真机流程。当前前台待隐藏集合只在内存中，进程退出可能导致结束边界已完成但应用没有最终隐藏。
 
 自动化页面还有两个体验风险：
 
 - 从精确闹钟授权页返回会触发刷新，可能覆盖尚未保存的草稿。
-- 应用选择使用动态 CheckBox 容器；应用数量较多时，性能和可访问性不如 RecyclerView。
+- 应用选择已改为仅展示首页应用的动态 MaterialSwitch 行；应用数量较多时仍可考虑 RecyclerView。
 
 详细语义见 [工作日自动化](workday_automation.md)。
 
@@ -182,6 +182,14 @@ HyperOS 3 的 `CrossProfileApps.startActivity(Intent, ...)` 会在持有 WindowM
 系统工具必须始终提供能力检测和降级提示，不能作为项目稳定性的硬依赖。
 
 ## 10. 构建与质量状态
+
+2026-07-18 工作模式与年度数据复核：
+
+- `testDebugUnitTest assembleDebug`：成功。
+- `testDebugUnitTest`：31 个测试，0 失败、0 错误、0 跳过。
+- APK 版本：1.6（versionCode 7）。
+- 源码、构建 APK 与手机安装包内的 `ic_app_icon.png` SHA-256 一致。
+- `git diff --check`：通过。
 
 2026-07-17 Android 16 基线离线复核：
 

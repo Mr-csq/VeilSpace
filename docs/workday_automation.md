@@ -1,6 +1,6 @@
 # 工作日应用策略自动化
 
-更新时间：2026-07-17
+更新时间：2026-07-18
 
 ## 产品语义
 
@@ -33,11 +33,11 @@
 
 ## 中国法定工作日
 
-`WorkdayProvider` 是可替换接口。内置 `ChinaLegalWorkdayProvider` 包含 2024、2025、2026 年节假日和调休补班表，来源为国务院办公厅年度通知；当前元数据更新时间为 2025-11-04，2026 年来源：
+`WorkdayProvider` 是可替换接口。内置 `ChinaLegalWorkdayProvider` 仅包含当前仍有调度价值的 2026 年节假日和调休补班表，来源为国务院办公厅年度通知；当前元数据更新时间为 2025-11-04，2026 年来源：
 
 https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
 
-普通周一至周五只有在数据年份受支持时才按工作日处理；内置表先覆盖法定放假日和周末补班。未知年份返回 `UNKNOWN`，不会用普通周末规则冒充法定工作日。界面展示数据年份、更新时间、来源，并允许切换到自定义星期兜底。
+普通周一至周五只有在数据年份受支持时才按工作日处理；内置表先覆盖法定放假日和周末补班。未知年份返回 `UNKNOWN`，不会用普通周末规则冒充法定工作日。界面展示数据年份、更新时间、来源，并允许切换到自定义星期兜底。若下一年度数据尚未内置，从当前数据最后一年的 11 月 1 日开始在工作模式页面提前警告；进入不受支持的年份后禁止保存法定工作日模式。2027 年数据将在国务院权威通知发布后再更新，不提前猜测。
 
 ## 调度与补偿
 
@@ -62,7 +62,7 @@ https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
 - 已卸载或不再存在的所选应用：保留为不可用记录，用户可取消选择；执行时不会伪造成功。
 - 通知权限是独立动作，即使 `keepAlive` 被策略拒绝，通知动作仍会独立检查并记录结果。
 - 从精确闹钟授权页返回会刷新已保存配置；当前页面尚未单独保存未提交草稿，授权前修改可能被覆盖。
-- 选择列表当前动态创建 CheckBox，应用较多时需要改为 RecyclerView 以控制布局成本并改善可访问性。
+- 选择列表当前动态创建 MaterialSwitch 行，应用较多时仍可考虑 RecyclerView 以控制布局成本。
 
 ## 关键代码
 
@@ -76,4 +76,4 @@ https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm
 
 ## 验证状态
 
-2026-07-17：`AutomationScheduleCalculatorTest` 共 11 个 JVM 测试，全部通过。Android 16 Debug 构建和 lint 均通过。尚未自动覆盖 AlarmManager、DevicePolicyManager、SharedPreferences 恢复、receiver 和 Profile Owner 真机链路。
+2026-07-18：`AutomationScheduleCalculatorTest` 包含 2026 权威数据边界、过期年份裁剪和 2027 提前预警测试。Android 16 Debug 构建和 lint 均通过。尚未自动覆盖 AlarmManager、DevicePolicyManager、SharedPreferences 恢复、receiver 和 Profile Owner 真机链路。

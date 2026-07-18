@@ -16,18 +16,54 @@ class AutomationScheduleCalculatorTest {
     private val calculator = AutomationScheduleCalculator()
 
     @Test
-    fun `china provider handles statutory holiday and adjusted weekend workday`() {
+    fun `china provider matches every published 2026 holiday range and adjusted workday`() {
+        val holidayRanges = listOf(
+            "2026-01-01" to "2026-01-03",
+            "2026-02-15" to "2026-02-23",
+            "2026-04-04" to "2026-04-06",
+            "2026-05-01" to "2026-05-05",
+            "2026-06-19" to "2026-06-21",
+            "2026-09-25" to "2026-09-27",
+            "2026-10-01" to "2026-10-07"
+        )
+        holidayRanges.forEach { (start, end) ->
+            var date = LocalDate.parse(start)
+            val last = LocalDate.parse(end)
+            while (!date.isAfter(last)) {
+                assertEquals(WorkdayClassification.HOLIDAY, ChinaLegalWorkdayProvider.classify(date))
+                date = date.plusDays(1)
+            }
+        }
+
+        listOf(
+            "2026-01-04",
+            "2026-02-14",
+            "2026-02-28",
+            "2026-05-09",
+            "2026-09-20",
+            "2026-10-10"
+        ).forEach { date ->
+            assertEquals(
+                WorkdayClassification.WORKDAY,
+                ChinaLegalWorkdayProvider.classify(LocalDate.parse(date))
+            )
+        }
+
+        assertEquals(
+            WorkdayClassification.WORKDAY,
+            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2026-07-14"))
+        )
         assertEquals(
             WorkdayClassification.HOLIDAY,
-            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2026-02-16"))
+            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2026-07-18"))
         )
+    }
+    @Test
+    fun `china provider packages only the current authoritative year`() {
+        assertEquals(setOf(2026), ChinaLegalWorkdayProvider.metadata.supportedYears)
         assertEquals(
-            WorkdayClassification.WORKDAY,
-            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2026-02-28"))
-        )
-        assertEquals(
-            WorkdayClassification.WORKDAY,
-            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2026-01-04"))
+            WorkdayClassification.UNKNOWN,
+            ChinaLegalWorkdayProvider.classify(LocalDate.parse("2025-12-31"))
         )
     }
 
@@ -36,6 +72,19 @@ class AutomationScheduleCalculatorTest {
         assertEquals(
             WorkdayClassification.UNKNOWN,
             ChinaLegalWorkdayProvider.classify(LocalDate.parse("2027-01-04"))
+        )
+    }
+
+    @Test
+    fun `next unsupported year warning starts in November`() {
+        assertNull(calculator.unsupportedYearRequiringAttention(LocalDate.parse("2026-10-31")))
+        assertEquals(
+            2027,
+            calculator.unsupportedYearRequiringAttention(LocalDate.parse("2026-11-01"))
+        )
+        assertEquals(
+            2027,
+            calculator.unsupportedYearRequiringAttention(LocalDate.parse("2027-01-01"))
         )
     }
 

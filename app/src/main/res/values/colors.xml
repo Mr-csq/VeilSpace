@@ -21,6 +21,7 @@
     <color name="space_outline_strong">#667EEAF7</color>
     <color name="space_divider">#1FD8E4FF</color>
     <color name="space_warning">#F6C86B</color>
+    <color name="space_warning_container">#403D3018</color>
     <color name="space_error">#FF7B8B</color>
     <color name="space_error_container">#4D6C2330</color>
 

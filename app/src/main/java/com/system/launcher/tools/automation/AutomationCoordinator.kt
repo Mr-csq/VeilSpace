@@ -23,6 +23,7 @@ data class AutomationUiState(
     val scheduleSnapshot: AutomationScheduleCalculator.Snapshot,
     val alarmStatus: AlarmScheduleStatus,
     val workdayMetadata: WorkdayDataMetadata,
+    val workdayDataWarning: String?,
     val lastResult: AutomationExecutionResult?
 )
 
@@ -74,19 +75,28 @@ class AutomationCoordinator @Inject constructor(
     fun loadUiState(): AutomationUiState {
         val now = Instant.now()
         val zoneId = ZoneId.systemDefault()
+        val today = LocalDate.now(zoneId)
         val config = store.loadConfig()
         return AutomationUiState(
             config = config,
             scheduleSnapshot = calculator.snapshot(config, now, zoneId),
             alarmStatus = alarmScheduler.reschedule(config, now, zoneId),
             workdayMetadata = calculator.providerMetadata(),
+            workdayDataWarning = calculator.unsupportedYearRequiringAttention(today)?.let { year ->
+                if (year > today.year) {
+                    year.toString() + " 年法定节假日安排尚未内置。请在国务院发布后更新应用；跨入 " +
+                        year + " 年前若仍未更新，请先改用自定义星期。"
+                } else {
+                    "当前缺少 " + year + " 年法定节假日数据，法定工作日模式不会猜测日期，请改用自定义星期。"
+                }
+            },
             lastResult = store.loadLastResult()
         )
     }
 
     fun createExactAlarmPermissionIntent() = alarmScheduler.createExactAlarmPermissionIntent()
 
-    fun availableApps() = ProfileAppStore.loadApps(context)
+    fun availableApps() = ProfileAppStore.loadHomeApps(context)
 
     fun selectionUnavailableReason(app: AppInfo): String? {
         val policy = ProfileAppPolicyStore.resolvePolicy(context, app.packageName)

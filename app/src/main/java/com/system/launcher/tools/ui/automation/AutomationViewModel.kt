@@ -1,5 +1,6 @@
 package com.system.launcher.tools.ui.automation
 
+import android.graphics.drawable.Drawable
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 data class AutomationAppChoice(
     val packageName: String,
     val appName: String,
+    val icon: Drawable?,
     val eligible: Boolean,
     val unavailableReason: String?
 )
@@ -51,7 +53,15 @@ class AutomationViewModel @Inject constructor(
             _saving.value = true
             val result = withContext(Dispatchers.IO) { coordinator.saveConfig(config) }
             if (result.config != null) {
-                _state.value = withContext(Dispatchers.IO) { buildScreenState() }
+                val currentApps = _state.value?.apps
+                _state.value = withContext(Dispatchers.IO) {
+                    AutomationScreenState(
+                        automation = coordinator.loadUiState(),
+                        // Keep the on-screen order stable after a toggle. A fresh refresh on the
+                        // next entry rebuilds the list with enabled apps first.
+                        apps = currentApps ?: buildScreenState().apps
+                    )
+                }
             }
             _saving.value = false
             onComplete(result)
@@ -68,17 +78,9 @@ class AutomationViewModel @Inject constructor(
             AutomationAppChoice(
                 packageName = app.packageName,
                 appName = app.appName,
+                icon = app.icon,
                 eligible = reason == null,
                 unavailableReason = reason
-            )
-        }.toMutableList()
-        val knownPackages = apps.mapTo(hashSetOf()) { it.packageName }
-        selected.filterNot { it in knownPackages }.forEach { packageName ->
-            apps += AutomationAppChoice(
-                packageName = packageName,
-                appName = packageName,
-                eligible = false,
-                unavailableReason = "应用已卸载或本地记录不存在，可取消选择"
             )
         }
         return AutomationScreenState(
