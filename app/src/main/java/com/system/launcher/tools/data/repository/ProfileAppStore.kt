@@ -25,7 +25,8 @@ object ProfileAppStore {
     private const val ICON_DIR = "profile_app_icons"
     private const val SORT_STEP = 10
 
-    fun saveApps(context: Context, apps: List<AppInfo>) {
+    @Synchronized
+    private fun saveApps(context: Context, apps: List<AppInfo>) {
         val previousEntries = loadEntries(context).associateBy { it.packageName }
         val entries = apps
             .filter { it.packageName.isNotBlank() && it.packageName != context.packageName }
@@ -96,6 +97,7 @@ object ProfileAppStore {
         return loadEntries(context).any { it.packageName == packageName }
     }
 
+    @Synchronized
     fun upsertApp(context: Context, app: AppInfo): List<AppInfo> {
         val existingApps = loadApps(context)
         val existing = existingApps.firstOrNull { it.packageName == app.packageName }
@@ -107,6 +109,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun upsertApps(context: Context, incomingApps: List<AppInfo>): List<AppInfo> {
         val currentByPackage = loadApps(context).associateBy { it.packageName }.toMutableMap()
         incomingApps
@@ -116,6 +119,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun removeApp(context: Context, packageName: String): List<AppInfo> {
         val entries = loadEntries(context)
         entries.firstOrNull { it.packageName == packageName }?.let { entry -> deleteIconFile(context, entry.iconFileName) }
@@ -125,6 +129,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun setShowOnHome(context: Context, packageName: String, showOnHome: Boolean): List<AppInfo> {
         val apps = loadApps(context).map { app ->
             if (app.packageName == packageName) {
@@ -144,6 +149,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun setKeepAlive(context: Context, packageName: String, keepAlive: Boolean): List<AppInfo> {
         val apps = loadApps(context).map { app ->
             if (app.packageName == packageName) app.copy(keepAlive = keepAlive) else app
@@ -152,6 +158,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun reorderHomeApps(context: Context, orderedPackageNames: List<String>): List<AppInfo> {
         val orderedPackages = orderedPackageNames.distinct()
         val orderByPackage = orderedPackages.mapIndexed { index, packageName ->
@@ -176,6 +183,7 @@ object ProfileAppStore {
         return loadApps(context)
     }
 
+    @Synchronized
     fun updateVerificationState(
         context: Context,
         packageName: String,
@@ -228,7 +236,7 @@ object ProfileAppStore {
             isSystemApp = incoming.isSystemApp || existing.isSystemApp,
             showOnHome = existing.showOnHome,
             sortOrder = existing.sortOrder,
-            keepAlive = existing.keepAlive || incoming.keepAlive,
+            keepAlive = existing.keepAlive,
             entrySource = mergeEntrySource(existing.entrySource, incoming.entrySource),
             installVerification = mergeInstallVerification(existing.installVerification, incoming.installVerification),
             launchVerification = mergeLaunchVerification(existing.launchVerification, incoming.launchVerification),

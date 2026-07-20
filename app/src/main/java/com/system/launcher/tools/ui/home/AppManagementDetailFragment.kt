@@ -31,6 +31,7 @@ class AppManagementDetailFragment : Fragment() {
     private lateinit var packageName: String
     private var currentApp: AppInfo? = null
     private var pendingUninstallApp: AppInfo? = null
+    private var settingChangeInProgress = false
 
     private val uninstallLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val app = pendingUninstallApp ?: return@registerForActivityResult
@@ -94,6 +95,7 @@ class AppManagementDetailFragment : Fragment() {
                 return@observe
             }
             currentApp = app
+            settingChangeInProgress = false
             bindApp(app)
         }
     }
@@ -114,7 +116,7 @@ class AppManagementDetailFragment : Fragment() {
         val canShow = app.installVerification != InstallVerification.CONFIRMED_MISSING
         binding.switchShow.setOnCheckedChangeListener(null)
         binding.switchShow.isChecked = app.showOnHome && canShow
-        binding.switchShow.isEnabled = canShow
+        binding.switchShow.isEnabled = canShow && !settingChangeInProgress
         binding.switchShow.alpha = if (canShow) 1f else 0.6f
         binding.tvShowHint.text = if (canShow) {
             "关闭后应用仍保留在隐藏空间，只是不出现在首页。"
@@ -122,7 +124,9 @@ class AppManagementDetailFragment : Fragment() {
             "应用已卸载，不能显示在首页；可在操作区移除记录。"
         }
         binding.switchShow.setOnCheckedChangeListener { _, isChecked ->
-            if (canShow) viewModel.setShowOnHome(app, isChecked)
+            if (canShow && beginSettingChange()) {
+                viewModel.setShowOnHome(app, isChecked)
+            }
         }
     }
 
@@ -140,9 +144,8 @@ class AppManagementDetailFragment : Fragment() {
             !policy.staticPolicy.userKeepAliveAllowed -> "强制自动隐藏"
             else -> "允许后台运行"
         }
-        binding.switchKeepAlive.isChecked = systemProtected || policy.effectiveUserKeepAlive ||
-            (policy.staticPolicy.userKeepAliveAllowed && app.keepAlive)
-        binding.switchKeepAlive.isEnabled = !keepAliveLocked
+        binding.switchKeepAlive.isChecked = systemProtected || policy.effectiveUserKeepAlive
+        binding.switchKeepAlive.isEnabled = !keepAliveLocked && !settingChangeInProgress
         binding.switchKeepAlive.alpha = if (keepAliveLocked) 0.6f else 1f
         binding.tvKeepAliveHint.text = when {
             internalApp -> "这是隐藏空间内部入口，不需要配置后台运行。"
@@ -153,8 +156,18 @@ class AppManagementDetailFragment : Fragment() {
             else -> "关闭后离开前台会自动隐藏，减少工作资料桌面残留。"
         }
         binding.switchKeepAlive.setOnCheckedChangeListener { _, isChecked ->
-            if (!keepAliveLocked) viewModel.setKeepAlive(app, isChecked)
+            if (!keepAliveLocked && beginSettingChange()) {
+                viewModel.setKeepAlive(app, isChecked)
+            }
         }
+    }
+
+    private fun beginSettingChange(): Boolean {
+        if (settingChangeInProgress) return false
+        settingChangeInProgress = true
+        binding.switchShow.isEnabled = false
+        binding.switchKeepAlive.isEnabled = false
+        return true
     }
 
     private fun bindStatus(app: AppInfo) {
@@ -191,7 +204,9 @@ class AppManagementDetailFragment : Fragment() {
             LaunchVerification.NOT_LAUNCHABLE -> parts += "不可启动"
             LaunchVerification.UNKNOWN -> Unit
         }
-        if (app.keepAlive) parts += "后台运行"
+        if (ProfileAppPolicyStore.resolvePolicy(requireContext(), app.packageName).effectiveUserKeepAlive) {
+            parts += "后台运行"
+        }
         if (AppManagementAdapter.hasIssue(app)) parts += "需处理"
         return parts.distinct().joinToString(" · ")
     }
@@ -268,6 +283,7 @@ class AppManagementDetailFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         pendingUninstallApp = null
+        settingChangeInProgress = false
         _binding = null
     }
 }

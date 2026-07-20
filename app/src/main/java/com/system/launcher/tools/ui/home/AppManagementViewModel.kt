@@ -22,6 +22,7 @@ import com.system.launcher.tools.work.WorkProfilePackageReceiver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -43,17 +44,22 @@ class AppManagementViewModel @Inject constructor(
 
     private val _loading = MutableLiveData<Boolean>()
     val loading: LiveData<Boolean> = _loading
+    private var loadAppsJob: Job? = null
+    private var appStateRevision = 0L
 
     init {
         loadApps(discover = true)
     }
 
     fun loadApps(discover: Boolean = false) {
-        viewModelScope.launch {
+        loadAppsJob?.cancel()
+        val revision = appStateRevision
+        loadAppsJob = viewModelScope.launch {
             val cachedApps = withContext(Dispatchers.IO) {
                 ensureBaseEntriesCached()
                 ProfileAppStore.loadApps(context)
             }
+            if (revision != appStateRevision) return@launch
             _apps.value = cachedApps
 
             if (!discover) {
@@ -68,6 +74,7 @@ class AppManagementViewModel @Inject constructor(
                 refreshStatuses(cacheMissingIcons = true)
                 ProfileAppStore.loadApps(context)
             }
+            if (revision != appStateRevision) return@launch
             _apps.value = refreshedApps
             _loading.value = false
         }
@@ -78,25 +85,35 @@ class AppManagementViewModel @Inject constructor(
     }
 
     fun setShowOnHome(app: AppInfo, show: Boolean) {
+        val revision = beginUserMutation()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                ProfileAppStore.setShowOnHome(context, app.packageName, show)
+                runCatching {
+                    ProfileAppStore.setShowOnHome(context, app.packageName, show)
+                }.getOrElse {
+                    ProfileAppStore.loadApps(context)
+                }
             }
-            _apps.value = result
+            publishUserMutation(revision, result)
         }
     }
 
     fun setKeepAlive(app: AppInfo, keepAlive: Boolean) {
+        val revision = beginUserMutation()
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                keepAliveController.setKeepAlive(
-                    packageName = app.packageName,
-                    enabled = keepAlive,
-                    reason = "manualAppManagement"
-                )
-                ProfileAppStore.loadApps(context)
+                runCatching {
+                    keepAliveController.setKeepAlive(
+                        packageName = app.packageName,
+                        enabled = keepAlive,
+                        reason = "manualAppManagement"
+                    )
+                    ProfileAppStore.loadApps(context)
+                }.getOrElse {
+                    ProfileAppStore.loadApps(context)
+                }
             }
-            _apps.value = result
+            publishUserMutation(revision, result)
         }
     }
 
@@ -154,6 +171,20 @@ class AppManagementViewModel @Inject constructor(
             onComplete(removed)
         }
     }
+
+    private fun beginUserMutation(): Long {
+        loadAppsJob?.cancel()
+        _loading.value = false
+        appStateRevision += 1
+        return appStateRevision
+    }
+
+    private fun publishUserMutation(revision: Long, apps: List<AppInfo>) {
+        if (revision != appStateRevision) return
+        appStateRevision += 1
+        _apps.value = apps
+    }
+
     fun autoHideStatusLabel(app: AppInfo): String {
         return ProfileAppPolicyStore.autoHideStatusLabel(context, app.packageName)
     }

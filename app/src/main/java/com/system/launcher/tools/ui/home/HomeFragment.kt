@@ -2,14 +2,17 @@ package com.system.launcher.tools.ui.home
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.result.contract.ActivityResultContracts
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import androidx.core.content.ContextCompat
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -18,6 +21,7 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
+import com.system.launcher.tools.databinding.BottomSheetAppQuickSettingsBinding
 import com.system.launcher.tools.databinding.FragmentHomeBinding
 import com.system.launcher.tools.ui.common.MaterialActionDialogs
 import com.system.launcher.tools.ui.common.SpaceUi
@@ -34,10 +38,12 @@ class HomeFragment : Fragment() {
     private val viewModel: HomeViewModel by viewModels()
 
     private lateinit var appGridAdapter: AppGridAdapter
+    private lateinit var itemTouchHelper: ItemTouchHelper
     private var pendingApkUri: Uri? = null
     private var packageMonitor: ProfilePackageMonitor? = null
     private var dragChanged = false
     private var settingsDialog: BottomSheetDialog? = null
+    private var quickSettingsDialog: BottomSheetDialog? = null
 
     private val apkPickerLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) handleSelectedApk(uri)
@@ -89,13 +95,25 @@ class HomeFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        appGridAdapter = AppGridAdapter(onAppClick = { app -> launchApp(app) })
+        appGridAdapter = AppGridAdapter(
+            onAppClick = { app -> launchApp(app) },
+            canOpenQuickSettings = viewModel::canOpenQuickSettings,
+            onOpenQuickSettings = ::showAppQuickSettings,
+            onStartDrag = { holder ->
+                if (appGridAdapter.itemCount > 1) {
+                    itemTouchHelper.startDrag(holder)
+                    true
+                } else {
+                    false
+                }
+            }
+        )
 
-        val itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+        itemTouchHelper = ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
             ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
             0
         ) {
-            override fun isLongPressDragEnabled(): Boolean = true
+            override fun isLongPressDragEnabled(): Boolean = false
             override fun isItemViewSwipeEnabled(): Boolean = false
 
             override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
@@ -124,7 +142,6 @@ class HomeFragment : Fragment() {
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
                 if (actionState == ItemTouchHelper.ACTION_STATE_DRAG) {
-                    viewHolder?.itemView?.let(SpaceUi::haptic)
                     viewHolder?.itemView?.translationZ = 12f
                     viewHolder?.itemView?.animate()?.scaleX(1.055f)?.scaleY(1.055f)?.setDuration(140)?.start()
                 }
@@ -146,6 +163,82 @@ class HomeFragment : Fragment() {
             SpaceUi.configureList(this)
         }
         itemTouchHelper.attachToRecyclerView(binding.rvApps)
+    }
+
+    private fun showAppQuickSettings(app: AppInfo) {
+        if (!viewModel.canOpenQuickSettings(app)) return
+        quickSettingsDialog?.dismiss()
+
+        val sheetBinding = BottomSheetAppQuickSettingsBinding.inflate(layoutInflater)
+        val dialog = BottomSheetDialog(requireContext())
+        val fallback = ContextCompat.getDrawable(requireContext(), android.R.drawable.sym_def_app_icon)
+        var programmaticUpdate = false
+        var operationInProgress = false
+
+        fun setSwitchesEnabled(enabled: Boolean) {
+            sheetBinding.switchShow.isEnabled = enabled
+            sheetBinding.switchKeepAlive.isEnabled = enabled
+            val alpha = if (enabled) 1f else 0.62f
+            sheetBinding.switchShow.alpha = alpha
+            sheetBinding.switchKeepAlive.alpha = alpha
+        }
+
+        sheetBinding.ivAppIcon.setImageDrawable(app.icon ?: fallback)
+        sheetBinding.tvAppName.text = app.appName
+        sheetBinding.switchShow.isChecked = app.showOnHome
+        sheetBinding.switchKeepAlive.isChecked = viewModel.isKeepAliveEnabled(app)
+
+        sheetBinding.switchShow.setOnCheckedChangeListener { _, isChecked ->
+            if (programmaticUpdate || operationInProgress || isChecked) return@setOnCheckedChangeListener
+            operationInProgress = true
+            setSwitchesEnabled(false)
+            viewModel.setShowOnHome(app, false) { successful ->
+                if (!isAdded || _binding == null) return@setShowOnHome
+                if (successful) {
+                    dialog.dismiss()
+                    showSpaceMessage("已从隐藏空间首页移除")
+                } else {
+                    programmaticUpdate = true
+                    sheetBinding.switchShow.isChecked = true
+                    programmaticUpdate = false
+                    operationInProgress = false
+                    setSwitchesEnabled(true)
+                    showSpaceMessage("首页显示设置失败，请重试", error = true)
+                }
+            }
+        }
+
+        sheetBinding.switchKeepAlive.setOnCheckedChangeListener { _, isChecked ->
+            if (programmaticUpdate || operationInProgress) return@setOnCheckedChangeListener
+            operationInProgress = true
+            setSwitchesEnabled(false)
+            viewModel.setKeepAlive(app, isChecked) { result ->
+                if (!isAdded || _binding == null) return@setKeepAlive
+                programmaticUpdate = true
+                sheetBinding.switchKeepAlive.isChecked = result.actualEnabled
+                programmaticUpdate = false
+                operationInProgress = false
+                setSwitchesEnabled(true)
+                showSpaceMessage(result.message, long = !result.successful, error = !result.successful)
+            }
+        }
+
+        dialog.setContentView(sheetBinding.root)
+        dialog.setOnShowListener {
+            (sheetBinding.root.parent as? View)?.setBackgroundColor(Color.TRANSPARENT)
+            dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
+            dialog.behavior.skipCollapsed = true
+            dialog.window?.apply {
+                setDimAmount(0.62f)
+                navigationBarColor = ContextCompat.getColor(requireContext(), R.color.space_background_deep)
+            }
+            SpaceUi.reveal(sheetBinding.root)
+        }
+        dialog.setOnDismissListener {
+            if (quickSettingsDialog === dialog) quickSettingsDialog = null
+        }
+        quickSettingsDialog = dialog
+        dialog.show()
     }
 
     private fun setupActions() {
@@ -342,6 +435,8 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        quickSettingsDialog?.dismiss()
+        quickSettingsDialog = null
         settingsDialog?.dismiss()
         settingsDialog = null
         packageMonitor?.stop()

@@ -6,7 +6,9 @@ import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -25,7 +27,10 @@ import kotlin.math.min
  * 应用网格适配器
  */
 class AppGridAdapter(
-    private val onAppClick: (AppInfo) -> Unit
+    private val onAppClick: (AppInfo) -> Unit,
+    private val canOpenQuickSettings: (AppInfo) -> Boolean,
+    private val onOpenQuickSettings: (AppInfo) -> Unit,
+    private val onStartDrag: (ViewHolder) -> Boolean
 ) : RecyclerView.Adapter<AppGridAdapter.ViewHolder>() {
     private val apps = mutableListOf<AppInfo>()
 
@@ -45,6 +50,11 @@ class AppGridAdapter(
     override fun getItemCount(): Int = apps.size
 
     override fun getItemId(position: Int): Long = apps[position].packageName.stableId()
+
+    override fun onViewRecycled(holder: ViewHolder) {
+        holder.recycle()
+        super.onViewRecycled(holder)
+    }
 
     fun submitApps(newApps: List<AppInfo>) {
         val oldApps = apps.toList()
@@ -77,15 +87,43 @@ class AppGridAdapter(
     fun finishDragAndGetPackageOrder(): List<String> = apps.map { it.packageName }
 
     inner class ViewHolder(private val binding: ItemAppGridBinding) : RecyclerView.ViewHolder(binding.root) {
+        private val touchSlop = ViewConfiguration.get(binding.root.context).scaledTouchSlop.toFloat()
+        private val longPressTimeoutMs = ViewConfiguration.getLongPressTimeout().toLong()
+        private var boundApp: AppInfo? = null
+        private var downX = 0f
+        private var downY = 0f
+        private var movedBeyondSlop = false
+        private var longPressTriggered = false
+        private var dragStarted = false
+        private val longPressRunnable = Runnable {
+            if (boundApp == null || movedBeyondSlop) return@Runnable
+            longPressTriggered = true
+            SpaceUi.haptic(binding.root)
+            binding.root.animate().scaleX(1.02f).scaleY(1.02f).setDuration(120L).start()
+        }
+
         init {
-            SpaceUi.attachPressScale(binding.root, 0.95f)
+            binding.root.setOnTouchListener { _, event -> handleTouch(event) }
+            binding.root.setOnLongClickListener {
+                val app = boundApp ?: return@setOnLongClickListener false
+                if (!canOpenQuickSettings(app)) return@setOnLongClickListener false
+                SpaceUi.haptic(binding.root)
+                onOpenQuickSettings(app)
+                true
+            }
         }
 
         fun bind(app: AppInfo) {
+            resetGesture()
+            boundApp = app
             binding.apply {
                 val displayName = app.homeDisplayName()
                 tvAppName.text = displayName
-                root.contentDescription = displayName
+                root.contentDescription = if (canOpenQuickSettings(app)) {
+                    "$displayName，长按打开快捷设置或移动排序"
+                } else {
+                    "$displayName，长按移动排序"
+                }
                 val fallback = ContextCompat.getDrawable(root.context, R.drawable.sym_def_app_icon)
                 ivAppIcon.setImageDrawable(normalizeIcon(app.icon ?: fallback))
                 val blocked = app.installVerification == InstallVerification.CONFIRMED_MISSING ||
@@ -107,8 +145,74 @@ class AppGridAdapter(
                 tvAppStatus.text = status
 
                 SpaceUi.setSafeClickListener(root) { onAppClick(app) }
-                root.setOnLongClickListener(null)
             }
+        }
+
+        fun recycle() {
+            resetGesture()
+            boundApp = null
+        }
+
+        private fun handleTouch(event: MotionEvent): Boolean {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    resetGesture()
+                    downX = event.x
+                    downY = event.y
+                    binding.root.animate().scaleX(0.95f).scaleY(0.95f).setDuration(90L).start()
+                    binding.root.postDelayed(longPressRunnable, longPressTimeoutMs)
+                }
+
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.x - downX
+                    val dy = event.y - downY
+                    if (!movedBeyondSlop && dx * dx + dy * dy > touchSlop * touchSlop) {
+                        movedBeyondSlop = true
+                        binding.root.removeCallbacks(longPressRunnable)
+                        if (longPressTriggered && !dragStarted) {
+                            dragStarted = onStartDrag(this)
+                        }
+                        if (!dragStarted) {
+                            restoreScale()
+                        }
+                    }
+                }
+
+                MotionEvent.ACTION_UP -> {
+                    binding.root.removeCallbacks(longPressRunnable)
+                    val app = boundApp
+                    when {
+                        longPressTriggered && !dragStarted && !movedBeyondSlop && app != null && canOpenQuickSettings(app) -> {
+                            restoreScale()
+                            onOpenQuickSettings(app)
+                        }
+
+                        !longPressTriggered && !movedBeyondSlop -> {
+                            restoreScale()
+                            binding.root.performClick()
+                        }
+
+                        !dragStarted -> restoreScale()
+                    }
+                }
+
+                MotionEvent.ACTION_CANCEL -> {
+                    binding.root.removeCallbacks(longPressRunnable)
+                    if (!dragStarted) restoreScale()
+                }
+            }
+            return true
+        }
+
+        private fun resetGesture() {
+            binding.root.removeCallbacks(longPressRunnable)
+            movedBeyondSlop = false
+            longPressTriggered = false
+            dragStarted = false
+        }
+
+        private fun restoreScale() {
+            binding.root.animate().scaleX(1f).scaleY(1f).setDuration(220L).start()
         }
 
         private fun AppInfo.homeDisplayName(): String {

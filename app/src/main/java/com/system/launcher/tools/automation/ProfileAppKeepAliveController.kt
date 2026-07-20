@@ -20,6 +20,7 @@ class ProfileAppKeepAliveController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val workProfileManager: WorkProfileManager
 ) {
+    @Synchronized
     fun setKeepAlive(packageName: String, enabled: Boolean, reason: String): KeepAliveChangeResult {
         if (!workProfileManager.isProfileOwner()) {
             return KeepAliveChangeResult(

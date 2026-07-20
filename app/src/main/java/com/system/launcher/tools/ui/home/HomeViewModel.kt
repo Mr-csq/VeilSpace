@@ -15,12 +15,16 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.system.launcher.tools.R
+import com.system.launcher.tools.automation.AutomationOperationStatus
+import com.system.launcher.tools.automation.KeepAliveChangeResult
+import com.system.launcher.tools.automation.ProfileAppKeepAliveController
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.AppRepository
+import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import com.system.launcher.tools.data.repository.ProfileAppStore
 import com.system.launcher.tools.work.WorkProfileManager
 import com.system.launcher.tools.work.WorkProfileConnectionState
@@ -37,6 +41,7 @@ import kotlinx.coroutines.withContext
 class HomeViewModel @Inject constructor(
     private val workProfileManager: WorkProfileManager,
     private val appRepository: AppRepository,
+    private val keepAliveController: ProfileAppKeepAliveController,
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) : ViewModel() {
 
@@ -268,11 +273,70 @@ class HomeViewModel @Inject constructor(
         return app.canAttemptLaunch || workProfileManager.isKnownProfileLaunchTool(app.packageName)
     }
 
-    fun hideFromHome(app: AppInfo, onComplete: () -> Unit) {
+    fun canOpenQuickSettings(app: AppInfo): Boolean {
+        if (isInternalFileManagerApp(app) || app.isSystemApp || app.isSystemCandidate) return false
+        if (app.installVerification != InstallVerification.CONFIRMED_INSTALLED) return false
+        val policy = ProfileAppPolicyStore.resolvePolicy(context, app.packageName)
+        return !policy.shouldNeverAutoHide && policy.staticPolicy.userKeepAliveAllowed
+    }
+
+    fun isKeepAliveEnabled(app: AppInfo): Boolean {
+        return ProfileAppPolicyStore.resolvePolicy(context, app.packageName).effectiveUserKeepAlive
+    }
+
+    fun setShowOnHome(app: AppInfo, show: Boolean, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) { ProfileAppStore.setShowOnHome(context, app.packageName, false) }
-            loadProfileApps()
-            onComplete()
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    ProfileAppStore.setShowOnHome(context, app.packageName, show)
+                    ProfileAppStore.loadHomeApps(context)
+                }
+            }
+            result.onSuccess { apps -> submitHomeAppsIfChanged(apps, forceSubmit = true) }
+                .onFailure { error -> Log.e(TAG, "Unable to update home visibility for ${app.packageName}", error) }
+            onComplete(result.isSuccess)
+        }
+    }
+
+    fun setKeepAlive(
+        app: AppInfo,
+        enabled: Boolean,
+        onComplete: (HomeQuickSettingChangeResult) -> Unit
+    ) {
+        viewModelScope.launch {
+            val change = withContext(Dispatchers.IO) {
+                val operation = runCatching {
+                    keepAliveController.setKeepAlive(
+                        packageName = app.packageName,
+                        enabled = enabled,
+                        reason = "manualHomeQuickSettings"
+                    )
+                }.getOrElse { error ->
+                    KeepAliveChangeResult(
+                        status = AutomationOperationStatus.FAILED,
+                        detail = error.message ?: "后台运行设置失败"
+                    )
+                }
+                val actualEnabled = ProfileAppPolicyStore.resolvePolicy(context, app.packageName).effectiveUserKeepAlive
+                val apps = ProfileAppStore.loadHomeApps(context)
+                Triple(operation, actualEnabled, apps)
+            }
+            submitHomeAppsIfChanged(change.third, forceSubmit = true)
+            val successful = change.first.status == AutomationOperationStatus.APPLIED ||
+                change.first.status == AutomationOperationStatus.DEFERRED_UNTIL_BACKGROUND
+            val message = when {
+                !successful -> change.first.detail.ifBlank { "后台运行设置失败" }
+                change.first.status == AutomationOperationStatus.DEFERRED_UNTIL_BACKGROUND -> change.first.detail
+                change.second -> "已允许后台运行"
+                else -> "已关闭后台运行"
+            }
+            onComplete(
+                HomeQuickSettingChangeResult(
+                    successful = successful,
+                    actualEnabled = change.second,
+                    message = message
+                )
+            )
         }
     }
 
@@ -603,3 +667,9 @@ class HomeViewModel @Inject constructor(
         return updated
     }
 }
+
+data class HomeQuickSettingChangeResult(
+    val successful: Boolean,
+    val actualEnabled: Boolean,
+    val message: String
+)

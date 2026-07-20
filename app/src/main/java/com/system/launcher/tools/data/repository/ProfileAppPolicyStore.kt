@@ -56,6 +56,7 @@ object ProfileAppPolicyStore {
         }
     }
 
+    @Synchronized
     fun setKeepAliveApp(context: Context, packageName: String, keepAlive: Boolean): Set<String> {
         val packages = getKeepAlivePackages(context).toMutableSet()
         val allowed = ProfileAppPolicyTable.resolve(packageName).userKeepAliveAllowed
