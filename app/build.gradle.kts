@@ -62,8 +62,8 @@ dependencies {
     implementation("androidx.navigation:navigation-ui-ktx:2.7.6")
 
     // Hilt
-    implementation("com.google.dagger:hilt-android:2.48")
-    kapt("com.google.dagger:hilt-compiler:2.48")
+    implementation("com.google.dagger:hilt-android:2.58")
+    kapt("com.google.dagger:hilt-compiler:2.58")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
