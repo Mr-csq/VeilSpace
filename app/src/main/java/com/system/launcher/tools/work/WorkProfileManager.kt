@@ -64,7 +64,6 @@ class WorkProfileManager @Inject constructor(
 
     companion object {
         private const val TAG = "WorkProfileManager"
-        const val ACTION_OPEN_PRIVACY_SPACE = "com.system.launcher.tools.action.OPEN_PRIVACY_SPACE"
         const val ACTION_OPEN_REAL_GAME_CENTER = "com.system.launcher.tools.action.OPEN_REAL_GAME_CENTER"
         const val ACTION_CLEANUP_LAUNCHER_SHORTCUT = "com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT"
         const val EXTRA_CLEANUP_PACKAGE_NAME = "com.system.launcher.tools.extra.CLEANUP_PACKAGE_NAME"
@@ -137,7 +136,6 @@ class WorkProfileManager @Inject constructor(
             val admin = getAdminComponent()
             enableManagedProfile(admin)
             configureProfileInstallPolicy(admin)
-            showPrivacyActionAliasInProfile()
             showPrivacySpaceLauncherAliasInProfile()
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
@@ -146,11 +144,6 @@ class WorkProfileManager @Inject constructor(
             devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
             Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
             devicePolicyManager.clearCrossProfileIntentFilters(admin)
-            devicePolicyManager.addCrossProfileIntentFilter(
-                admin,
-                IntentFilter(ACTION_OPEN_PRIVACY_SPACE).apply { addCategory(Intent.CATEGORY_DEFAULT) },
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED
-            )
             devicePolicyManager.addCrossProfileIntentFilter(
                 admin,
                 IntentFilter(ACTION_OPEN_REAL_GAME_CENTER).apply { addCategory(Intent.CATEGORY_DEFAULT) },
@@ -279,12 +272,8 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.WorkProfileGameCenterAlias")
     }
 
-    fun getPrivacyActionComponent(): ComponentName {
-        return ComponentName(context.packageName, "${context.packageName}.PrivacyActionAlias")
-    }
-
     private fun getGameCenterEntryComponent(): ComponentName {
-        return ComponentName(context.packageName, "${context.packageName}.GameCenterAlias")
+        return ComponentName(context.packageName, "${context.packageName}.PersonalGameCenterAlias")
     }
 
     private fun getGameCenterProxyComponent(): ComponentName {
@@ -432,33 +421,10 @@ class WorkProfileManager @Inject constructor(
                 return false
             }
             requestManagedProfileAvailable(workUser)
-            val component = if (targetActivity.name == "${context.packageName}.MainActivity") {
-                getPrivacyEntryComponent()
-            } else {
-                ComponentName(context, targetActivity)
-            }
             if (targetActivity.name == "${context.packageName}.MainActivity") {
-                val explicitIntent = Intent(ACTION_OPEN_PRIVACY_SPACE).apply {
-                    setComponent(getPrivacyActionComponent())
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                }
-                runCatching {
-                    activity.startActivity(Intent(ACTION_OPEN_PRIVACY_SPACE).apply {
-                        setPackage(context.packageName)
-                        addCategory(Intent.CATEGORY_DEFAULT)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    })
-                }.getOrElse { implicitError ->
-                    Log.w(TAG, "Implicit cross-profile action start failed, trying CrossProfileApps action", implicitError)
-                    runCatching {
-                        getCrossProfileApps().startActivity(explicitIntent, workUser, activity)
-                    }.getOrElse { explicitError ->
-                        Log.w(TAG, "Explicit cross-profile start failed, falling back to launcher alias", explicitError)
-                        getCrossProfileApps().startMainActivity(component, workUser)
-                    }
-                }
+                getCrossProfileApps().startMainActivity(getPrivacyEntryComponent(), workUser)
             } else {
-                getCrossProfileApps().startMainActivity(component, workUser)
+                getCrossProfileApps().startMainActivity(ComponentName(context, targetActivity), workUser)
             }
             activity.finish()
             true
@@ -612,6 +578,8 @@ class WorkProfileManager @Inject constructor(
         Log.i(TAG, "Prepared system candidate package=$packageName installed=$installed")
         return installed
     }
+
+
     fun hidePrivacySpaceLauncherAliasInProfile(): Boolean {
         return setPrivacySpaceLauncherAliasEnabled(false)
     }
@@ -620,16 +588,20 @@ class WorkProfileManager @Inject constructor(
         return setPrivacySpaceLauncherAliasEnabled(true)
     }
 
-    fun hidePrivacyActionAliasInProfile(): Boolean {
-        return setPrivacyActionAliasEnabled(false)
-    }
-
-    fun showPrivacyActionAliasInProfile(): Boolean {
-        return setPrivacyActionAliasEnabled(true)
-    }
-
     fun hideGameCenterLauncherAliasInProfile(): Boolean {
         return setGameCenterLauncherAliasEnabled(false)
+    }
+
+    fun configurePersonalProfileEntry(): Boolean {
+        if (isProfileOwner()) return false
+        val workLauncherHidden = hidePrivacySpaceLauncherAliasInProfile()
+        val personalLauncherHidden = hideGameCenterLauncherAliasInProfile()
+        Log.i(
+            TAG,
+            "Configured personal entry: workLauncherHidden=$workLauncherHidden, " +
+                "personalLauncherHidden=$personalLauncherHidden"
+        )
+        return workLauncherHidden && personalLauncherHidden
     }
 
     fun hideGameCenterProxyInProfile(): Boolean {
@@ -645,28 +617,20 @@ class WorkProfileManager @Inject constructor(
     }
 
     private fun setPrivacySpaceLauncherAliasEnabled(enabled: Boolean): Boolean {
-        return try {
-            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
-            packageManager.setComponentEnabledSetting(getPrivacyEntryComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set privacy launcher alias enabled=$enabled")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting privacy launcher alias enabled=$enabled", e)
-            false
-        }
-    }
-    private fun setPrivacyActionAliasEnabled(enabled: Boolean): Boolean {
-        return try {
-            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
-            packageManager.setComponentEnabledSetting(getPrivacyActionComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set privacy action alias enabled=$enabled")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting privacy action alias enabled=$enabled", e)
-            false
-        }
+        return setLauncherAliasEnabled(getPrivacyEntryComponent(), enabled, "privacy")
     }
 
+    private fun setLauncherAliasEnabled(component: ComponentName, enabled: Boolean, label: String): Boolean {
+        return try {
+            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
+            packageManager.setComponentEnabledSetting(component, state, DONT_KILL_APP)
+            Log.i(TAG, "Set $label launcher alias enabled=$enabled component=$component")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting $label launcher alias enabled=$enabled component=$component", e)
+            false
+        }
+    }
     private fun setGameCenterLauncherAliasEnabled(enabled: Boolean): Boolean {
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
@@ -859,10 +823,14 @@ class WorkProfileManager @Inject constructor(
     }
     private fun requestLauncherRequery(packageName: String, reason: String): Boolean {
         return runCatching {
-            val disabled = setPrivacySpaceLauncherAliasEnabled(false)
-            val enabled = setPrivacySpaceLauncherAliasEnabled(true)
-            Log.i(TAG, "Requested launcher requery reason=$reason package=$packageName disabled=$disabled enabled=$enabled")
-            disabled || enabled
+            val workLauncherShown = showPrivacySpaceLauncherAliasInProfile()
+            val personalLauncherHidden = hideGameCenterLauncherAliasInProfile()
+            Log.i(
+                TAG,
+                "Restored profile launcher during requery reason=$reason package=$packageName " +
+                    "workLauncherShown=$workLauncherShown personalLauncherHidden=$personalLauncherHidden"
+            )
+            workLauncherShown || personalLauncherHidden
         }.onFailure { error ->
             Log.w(TAG, "Launcher requery request failed reason=$reason package=$packageName", error)
         }.getOrDefault(false)

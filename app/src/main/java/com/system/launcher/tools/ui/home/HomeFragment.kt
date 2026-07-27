@@ -2,6 +2,7 @@ package com.system.launcher.tools.ui.home
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -261,10 +262,19 @@ class HomeFragment : Fragment() {
                 MaterialActionDialogs.Action("整理桌面残留图标", R.drawable.ic_folder_24) { tidyDesktopResidualIcons() },
                 MaterialActionDialogs.Action("修复安装环境", R.drawable.ic_shield_24) { repairInstallEnvironment() },
                 MaterialActionDialogs.Action("本应用未知来源授权", R.drawable.ic_info_24) { launchUnknownAppSourcesSettings() }
-            )
+            ),
+            footer = getString(R.string.app_version_format, getAppVersionName())
         )
         settingsDialog?.setOnDismissListener { settingsDialog = null }
     }
+
+    private fun getAppVersionName(): String {
+        return requireContext().packageManager.getPackageInfo(
+            requireContext().packageName,
+            PackageManager.PackageInfoFlags.of(0)
+        ).versionName.orEmpty()
+    }
+
     private fun repairAppIcons() {
         showSpaceMessage("正在修复应用图标")
         viewModel.repairHomeAppIcons { repaired ->

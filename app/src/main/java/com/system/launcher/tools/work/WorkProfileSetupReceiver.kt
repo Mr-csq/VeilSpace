@@ -16,6 +16,8 @@ class WorkProfileSetupReceiver : BroadcastReceiver() {
         Log.i(TAG, "Received $action, isProfileOwner=$isOwner")
         if (isOwner) {
             manager.configureCrossProfileEntry()
+        } else if (manager.hasCrossProfileTarget()) {
+            manager.configurePersonalProfileEntry()
         }
     }
 

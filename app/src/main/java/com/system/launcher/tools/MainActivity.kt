@@ -1,5 +1,6 @@
 package com.system.launcher.tools
 
+import android.app.ActivityManager
 import android.graphics.Color
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
@@ -20,6 +21,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        excludeCurrentTaskFromRecents()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.TRANSPARENT
         window.navigationBarColor = Color.TRANSPARENT
@@ -33,9 +35,7 @@ class MainActivity : AppCompatActivity() {
         if (workProfileManager.isProfileOwner()) {
             workProfileManager.configureCrossProfileEntry()
         } else {
-            workProfileManager.hidePrivacyActionAliasInProfile()
-            workProfileManager.hidePrivacySpaceLauncherAliasInProfile()
-            workProfileManager.hideGameCenterLauncherAliasInProfile()
+            workProfileManager.configurePersonalProfileEntry()
             if (workProfileManager.redirectToManagedProfile(this, MainActivity::class.java)) {
                 return
             }
@@ -44,6 +44,13 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupNavigation()
+    }
+
+    private fun excludeCurrentTaskFromRecents() {
+        getSystemService(ActivityManager::class.java)
+            .appTasks
+            .firstOrNull { it.taskInfo.taskId == taskId }
+            ?.setExcludeFromRecents(true)
     }
 
     private fun setupNavigation() {

@@ -51,6 +51,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
+            android:excludeFromRecents="true"
             android:theme="@style/Theme.PrivacySpace"
             android:icon="@drawable/ic_app_icon"
             android:roundIcon="@drawable/ic_app_icon">
@@ -89,7 +90,8 @@
             android:name=".ui.disguise.DisguiseActivity"
             android:exported="false"
             android:theme="@style/Theme.DisguiseWait"
-            android:excludeFromRecents="true" />
+            android:excludeFromRecents="true"
+            android:taskAffinity="com.system.launcher.tools.disguise" />
         <!-- 主空间代理：由工作资料跨资料调用，用于打开真正的小米游戏中心 -->
         <activity
             android:name=".ui.disguise.GameCenterProxyActivity"
@@ -139,7 +141,7 @@
         </receiver>
         <!-- Activity Alias 伪装成游戏中心 -->
         <activity-alias
-            android:name=".GameCenterAlias"
+            android:name=".PersonalGameCenterAlias"
             android:targetActivity=".ui.disguise.DisguiseActivity"
             android:exported="true"
             android:enabled="false"
@@ -151,9 +153,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-
-
-        <!-- Work Profile 桌面入口：伪装成游戏中心，手势通过后进入隐藏空间 -->
+        <!-- 工作资料桌面入口：恢复原组件名和原 PNG 图标加载路径。 -->
         <activity-alias
             android:name=".WorkProfileGameCenterAlias"
             android:targetActivity=".ui.disguise.DisguiseActivity"
@@ -168,21 +168,6 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- Work Profile 非桌面入口：用于跨资料 intent filter，不出现在桌面 -->
-        <activity-alias
-            android:name=".PrivacyActionAlias"
-            android:targetActivity=".MainActivity"
-            android:exported="true"
-            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
-            android:enabled="false"
-            android:icon="@drawable/ic_app_icon"
-            android:roundIcon="@drawable/ic_app_icon"
-            android:label="游戏中心">
-            <intent-filter>
-                <action android:name="com.system.launcher.tools.action.OPEN_PRIVACY_SPACE" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity-alias>
 
         <receiver
             android:name=".work.WorkProfilePackageReceiver"

@@ -24,7 +24,12 @@ object MaterialActionDialogs {
         val onClick: () -> Unit
     )
 
-    fun show(context: Context, title: String, actions: List<Action>): BottomSheetDialog {
+    fun show(
+        context: Context,
+        title: String,
+        actions: List<Action>,
+        footer: String? = null
+    ): BottomSheetDialog {
         fun dp(value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
         val dialog = BottomSheetDialog(context)
         val content = LinearLayout(context).apply {
@@ -88,6 +93,18 @@ object MaterialActionDialogs {
                 action.onClick()
             }
             content.addView(row, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)))
+        }
+
+        footer?.let { footerText ->
+            content.addView(TextView(context).apply {
+                text = footerText
+                gravity = Gravity.CENTER
+                setTextColor(ContextCompat.getColor(context, R.color.space_text_tertiary))
+                textSize = 12f
+                includeFontPadding = false
+            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = dp(12)
+            })
         }
 
         dialog.setContentView(content)

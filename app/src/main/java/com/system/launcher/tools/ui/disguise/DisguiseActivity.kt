@@ -57,9 +57,13 @@ class DisguiseActivity : AppCompatActivity() {
 
     private fun refreshManagedProfilePoliciesIfNeeded() {
         runCatching {
+            val manager = WorkProfileManager(this)
             val dpm = getSystemService(DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            if (!dpm.isProfileOwnerApp(packageName)) return
-            WorkProfileManager(this).configureCrossProfileEntry()
+            if (!dpm.isProfileOwnerApp(packageName)) {
+                manager.configurePersonalProfileEntry()
+                return
+            }
+            manager.configureCrossProfileEntry()
             val receiver = ComponentName(packageName, "$packageName.ui.disguise.GameCenterProxyReceiver")
             packageManager.setComponentEnabledSetting(
                 receiver,
@@ -208,21 +212,19 @@ class DisguiseActivity : AppCompatActivity() {
     private fun openPrivacySpace() {
         if (hasOpenedPrivacySpace) return
         hasOpenedPrivacySpace = true
-        val crossProfileIntent = Intent(WorkProfileManager.ACTION_OPEN_PRIVACY_SPACE).apply {
-            addCategory(Intent.CATEGORY_DEFAULT)
-            setPackage(packageName)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        val manager = WorkProfileManager(this)
+        if (!manager.isProfileOwner()) {
+            hasOpenedPrivacySpace = false
+            Log.w(TAG, "Reject privacy entry outside the managed profile")
+            return
         }
-
-        try {
-            startActivity(crossProfileIntent)
-        } catch (e: Exception) {
-            Log.w(TAG, "Cross-profile entry failed, opening local MainActivity", e)
-            val localIntent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-            startActivity(localIntent)
-        }
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TASK or
+                    Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS
+            )
+        })
         finishWithoutAnimation()
     }
 
