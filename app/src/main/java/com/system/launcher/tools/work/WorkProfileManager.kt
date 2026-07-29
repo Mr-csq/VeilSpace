@@ -139,7 +139,6 @@ class WorkProfileManager @Inject constructor(
             showPrivacySpaceLauncherAliasInProfile()
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
-            showLauncherShortcutCleanupActivityInProfile()
             hidePersonalMediaImportActivityInProfile()
             devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
             Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
@@ -280,9 +279,6 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.ui.disguise.GameCenterProxyActivity")
     }
 
-    private fun getLauncherShortcutCleanupComponent(): ComponentName {
-        return ComponentName(context.packageName, "${context.packageName}.work.LauncherShortcutCleanupActivity")
-    }
 
     private fun getPersonalMediaImportComponent(): ComponentName {
         return ComponentName(context.packageName, "${context.packageName}.ui.files.PersonalMediaImportActivity")
@@ -608,9 +604,6 @@ class WorkProfileManager @Inject constructor(
         return setGameCenterProxyEnabled(false)
     }
 
-    fun showLauncherShortcutCleanupActivityInProfile(): Boolean {
-        return setLauncherShortcutCleanupActivityEnabled(true)
-    }
 
     fun hidePersonalMediaImportActivityInProfile(): Boolean {
         return setPersonalMediaImportActivityEnabled(false)
@@ -651,18 +644,6 @@ class WorkProfileManager @Inject constructor(
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error setting game center proxy enabled=$enabled", e)
-            false
-        }
-    }
-
-    private fun setLauncherShortcutCleanupActivityEnabled(enabled: Boolean): Boolean {
-        return try {
-            val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
-            packageManager.setComponentEnabledSetting(getLauncherShortcutCleanupComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set launcher shortcut cleanup activity enabled=$enabled")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error setting launcher shortcut cleanup activity enabled=$enabled", e)
             false
         }
     }
@@ -802,24 +783,24 @@ class WorkProfileManager @Inject constructor(
             .mapNotNull(ComponentName::unflattenFromString)
         val hints = LauncherShortcutCleaner.resolveShortcutHints(context, packageName, cachedLabels, cachedComponents)
         val intent = Intent(ACTION_CLEANUP_LAUNCHER_SHORTCUT).apply {
-            setComponent(getLauncherShortcutCleanupComponent())
+            setPackage(context.packageName)
             putExtra(EXTRA_CLEANUP_PACKAGE_NAME, packageName)
             putExtra(EXTRA_CLEANUP_ALLOW_GENERIC_USER_APP, allowGenericUserAppCleanup)
             putStringArrayListExtra(EXTRA_CLEANUP_SHORTCUT_LABELS, ArrayList(hints.labels))
             putStringArrayListExtra(EXTRA_CLEANUP_SHORTCUT_COMPONENTS, ArrayList(hints.components.map { it.flattenToString() }))
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
         }
-        val activityStarted = runCatching {
-            context.startActivity(intent)
+        // Receiver delivery keeps cleanup off the activity/task path and avoids Android 16 BAL.
+        val broadcastSent = runCatching {
+            context.sendBroadcast(intent)
             true
         }.onFailure { error ->
-            Log.w(TAG, "Launcher shortcut cleanup activity request failed reason=$reason package=$packageName", error)
+            Log.w(TAG, "Launcher shortcut cleanup broadcast failed reason=$reason package=$packageName", error)
         }.getOrDefault(false)
         Log.i(
             TAG,
-            "Requested launcher shortcut cleanup reason=$reason package=$packageName activity=$activityStarted generic=$allowGenericUserAppCleanup labels=${hints.labels.size} components=${hints.components.size}"
+            "Requested launcher shortcut cleanup reason=$reason package=$packageName broadcast=$broadcastSent generic=$allowGenericUserAppCleanup labels=${hints.labels.size} components=${hints.components.size}"
         )
-        return activityStarted
+        return broadcastSent
     }
     private fun requestLauncherRequery(packageName: String, reason: String): Boolean {
         return runCatching {

@@ -18,13 +18,20 @@ data class AutomationSaveResult(
     val alarmStatus: AlarmScheduleStatus?
 )
 
+data class AutomationOneTimePauseUpdateResult(
+    val pause: AutomationOneTimePause?,
+    val error: String?,
+    val alarmStatus: AlarmScheduleStatus
+)
+
 data class AutomationUiState(
     val config: AutomationConfig,
     val scheduleSnapshot: AutomationScheduleCalculator.Snapshot,
     val alarmStatus: AlarmScheduleStatus,
     val workdayMetadata: WorkdayDataMetadata,
     val workdayDataWarning: String?,
-    val lastResult: AutomationExecutionResult?
+    val lastResult: AutomationExecutionResult?,
+    val oneTimePause: AutomationOneTimePause?
 )
 
 @Singleton
@@ -47,11 +54,13 @@ class AutomationCoordinator @Inject constructor(
         }
         if (errors.isNotEmpty()) return@synchronized AutomationSaveResult(null, errors, null)
 
+        val currentPause = store.loadOneTimePause()
         val nextRevision = store.loadConfig().revision + 1L
         val versioned = draft.copy(revision = nextRevision)
         // A configuration edit never replays a boundary that happened before Save.
         val baseline = calculator.snapshot(versioned, now, zoneId).latestBoundary
-        val saved = store.saveConfig(versioned, baseline)
+        val pauseAfterSave = oneTimePauseAfterConfigSave(currentPause, versioned, now, zoneId)
+        val saved = store.saveConfig(versioned, baseline, pauseAfterSave)
         val alarmStatus = alarmScheduler.reschedule(saved, now, zoneId)
         AutomationSaveResult(saved, emptyList(), alarmStatus)
     }
@@ -61,16 +70,95 @@ class AutomationCoordinator @Inject constructor(
         val zoneId = ZoneId.systemDefault()
         val config = store.loadConfig()
         if (!config.enabled || config.validationErrors().isNotEmpty()) {
+            store.saveOneTimePause(null)
             return@synchronized alarmScheduler.reschedule(config, now, zoneId)
         }
 
         val snapshot = calculator.snapshot(config, now, zoneId)
         val latest = snapshot.latestBoundary
-        if (latest != null && shouldExecute(latest)) {
-            executeBoundary(config, latest, triggerReason, now)
+        val pause = store.loadOneTimePause()
+        if (latest != null) {
+            val pauseDecision = AutomationOneTimePausePolicy.decide(pause, latest)
+            if (pause != null && !pauseDecision.skipBoundary && pauseDecision.pauseAfterBoundary == null) {
+                store.saveOneTimePause(null)
+            }
+            if (shouldExecute(latest)) {
+                if (pauseDecision.skipBoundary) {
+                    recordSkippedBoundary(latest, triggerReason, now, pauseDecision.pauseAfterBoundary)
+                } else {
+                    executeBoundary(
+                        config,
+                        latest,
+                        triggerReason,
+                        now,
+                        pauseDecision.pauseAfterBoundary
+                    )
+                }
+            }
         }
         alarmScheduler.reschedule(config, Instant.now(), zoneId)
     }
+
+    fun setOneTimePause(enabled: Boolean): AutomationOneTimePauseUpdateResult =
+        synchronized(EXECUTION_LOCK) {
+            val now = Instant.now()
+            val zoneId = ZoneId.systemDefault()
+            val config = store.loadConfig()
+            val existing = store.loadOneTimePause()
+
+            if (!enabled) {
+                if (existing?.switchArmed == false) {
+                    return@synchronized AutomationOneTimePauseUpdateResult(
+                        pause = existing,
+                        error = "本次工作时段已停用，结束边界后才能再次设置",
+                        alarmStatus = alarmScheduler.reschedule(config, now, zoneId)
+                    )
+                }
+                store.saveOneTimePause(null)
+                return@synchronized AutomationOneTimePauseUpdateResult(
+                    pause = null,
+                    error = null,
+                    alarmStatus = alarmScheduler.reschedule(config, now, zoneId)
+                )
+            }
+
+            if (existing != null) {
+                return@synchronized AutomationOneTimePauseUpdateResult(
+                    pause = existing,
+                    error = if (existing.switchArmed) null else "本次工作时段已停用，结束边界后才能再次设置",
+                    alarmStatus = alarmScheduler.reschedule(config, now, zoneId)
+                )
+            }
+
+            val error = when {
+                !config.enabled -> "请先保存并启用工作模式"
+                config.validationErrors().isNotEmpty() -> "已保存的工作模式配置无效，请先修正并保存"
+                else -> null
+            }
+            val nextStart = if (error == null) {
+                calculator.snapshot(config, now, zoneId).nextStartBoundary
+            } else {
+                null
+            }
+            if (error != null || nextStart == null) {
+                return@synchronized AutomationOneTimePauseUpdateResult(
+                    pause = null,
+                    error = error ?: "当前没有可停用的下一次工作时段",
+                    alarmStatus = alarmScheduler.reschedule(config, now, zoneId)
+                )
+            }
+
+            val pause = AutomationOneTimePause(
+                workDate = nextStart.workDate,
+                requestedAt = now
+            )
+            store.saveOneTimePause(pause)
+            AutomationOneTimePauseUpdateResult(
+                pause = pause,
+                error = null,
+                alarmStatus = alarmScheduler.reschedule(config, now, zoneId)
+            )
+        }
 
     fun loadUiState(): AutomationUiState {
         val now = Instant.now()
@@ -90,7 +178,8 @@ class AutomationCoordinator @Inject constructor(
                     "当前缺少 " + year + " 年法定节假日数据，法定工作日模式不会猜测日期，请改用自定义星期。"
                 }
             },
-            lastResult = store.loadLastResult()
+            lastResult = store.loadLastResult(),
+            oneTimePause = store.loadOneTimePause()
         )
     }
 
@@ -109,6 +198,37 @@ class AutomationCoordinator @Inject constructor(
         }
     }
 
+    private fun oneTimePauseAfterConfigSave(
+        current: AutomationOneTimePause?,
+        config: AutomationConfig,
+        now: Instant,
+        zoneId: ZoneId
+    ): AutomationOneTimePause? {
+        if (current == null || !config.enabled) return null
+        return when (current.phase) {
+            AutomationOneTimePausePhase.PENDING -> {
+                calculator.snapshot(config, now, zoneId).nextStartBoundary?.let { nextStart ->
+                    current.copy(
+                        workDate = nextStart.workDate,
+                        phase = AutomationOneTimePausePhase.PENDING,
+                        switchArmed = true
+                    )
+                }
+            }
+            AutomationOneTimePausePhase.ACTIVE -> {
+                val targetStillScheduled = calculator.isEligibleWorkDate(config, current.workDate)
+                val targetEndIsFuture = targetStillScheduled &&
+                    calculator.boundaryFor(
+                        config,
+                        current.workDate,
+                        AutomationBoundaryType.END,
+                        zoneId
+                    ).scheduledAt.isAfter(now)
+                current.takeIf { targetEndIsFuture }
+            }
+        }
+    }
+
     private fun shouldExecute(boundary: AutomationBoundary): Boolean {
         if (!BoundaryExecutionDecider.shouldExecute(boundary.id, store.lastCompletedBoundaryId())) return false
         val completedAt = store.lastCompletedScheduledAt()
@@ -116,11 +236,31 @@ class AutomationCoordinator @Inject constructor(
         return completedAt == null || boundary.scheduledAt.isAfter(completedAt)
     }
 
+    private fun recordSkippedBoundary(
+        boundary: AutomationBoundary,
+        triggerReason: String,
+        executedAt: Instant,
+        oneTimePauseAfter: AutomationOneTimePause?
+    ) {
+        val result = AutomationExecutionResult(
+            boundaryId = boundary.id,
+            boundaryType = boundary.type,
+            scheduledAt = boundary.scheduledAt,
+            executedAt = executedAt,
+            triggerReason = triggerReason,
+            completed = true,
+            appResults = emptyList(),
+            outcome = AutomationExecutionOutcome.SKIPPED_ONCE
+        )
+        store.markBoundaryCompleted(result, oneTimePauseAfter)
+    }
+
     private fun executeBoundary(
         config: AutomationConfig,
         boundary: AutomationBoundary,
         triggerReason: String,
-        executedAt: Instant
+        executedAt: Instant,
+        oneTimePauseAfter: AutomationOneTimePause?
     ) {
         val enable = BoundaryPolicy.desiredKeepAlive(boundary.type)
         val grantNotifications = BoundaryPolicy.desiredNotificationGrant(boundary.type)
@@ -161,7 +301,7 @@ class AutomationCoordinator @Inject constructor(
             appResults = results
         )
         if (executionResult.completed) {
-            store.markBoundaryCompleted(executionResult)
+            store.markBoundaryCompleted(executionResult, oneTimePauseAfter)
         } else {
             store.saveAttemptResult(executionResult)
         }

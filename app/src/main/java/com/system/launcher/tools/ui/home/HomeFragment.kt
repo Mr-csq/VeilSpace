@@ -20,6 +20,7 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
+import com.system.launcher.tools.MainActivity
 import com.system.launcher.tools.R
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.databinding.BottomSheetAppQuickSettingsBinding
@@ -330,10 +331,19 @@ class HomeFragment : Fragment() {
             showUnavailableAppDialog(app)
             return
         }
-        val success = viewModel.launchApp(app)
-        if (!success) showUnavailableAppDialog(app)
+        val launchImmediately = {
+            if (isAdded) {
+                val success = viewModel.launchApp(app)
+                if (success) {
+                    (activity as? MainActivity)?.revokeSessionAfterExternalLaunch()
+                } else {
+                    showUnavailableAppDialog(app)
+                }
+            }
+        }
+        (activity as? MainActivity)?.closeLauncherFolderBeforeExternalLaunch(launchImmediately)
+            ?: launchImmediately()
     }
-
     private fun showUnavailableAppDialog(app: AppInfo) {
         val reason = app.diagnosticReason.ifBlank { "当前无法启动此应用" }
         MaterialAlertDialogBuilder(requireContext())

@@ -2,6 +2,9 @@
 
 This project is small, but Windows/Gradle file locks can make builds look much slower than the codebase warrants. Prefer the incremental path first and use a clean build only when outputs are suspected stale.
 
+## Versioning
+
+Every `assemble*` or `bundle*` packaging build increments `version.properties`: `VERSION_NAME` advances by `0.0.1` and `VERSION_CODE` advances by one. The APK built by that invocation uses the incremented values. Do not edit the version directly in `app/build.gradle.kts`.
 ## Daily fast path
 
 ```powershell

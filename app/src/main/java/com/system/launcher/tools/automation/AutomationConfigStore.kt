@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 
 class AutomationConfigStore(context: Context) {
     private val preferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -35,7 +36,11 @@ class AutomationConfigStore(context: Context) {
 
     @Synchronized
     @SuppressLint("ApplySharedPref") // Config and baseline must become durable before the old alarm is replaced.
-    fun saveConfig(config: AutomationConfig, baselineBoundary: AutomationBoundary?): AutomationConfig {
+    fun saveConfig(
+        config: AutomationConfig,
+        baselineBoundary: AutomationBoundary?,
+        oneTimePause: AutomationOneTimePause?
+    ): AutomationConfig {
         val currentRevision = loadConfig().revision
         val saved = config.copy(
             revision = maxOf(currentRevision + 1L, config.revision),
@@ -50,8 +55,34 @@ class AutomationConfigStore(context: Context) {
             editor.putString(KEY_LAST_COMPLETED_BOUNDARY, baselineBoundary.id)
             editor.putLong(KEY_LAST_COMPLETED_SCHEDULED_AT, baselineBoundary.scheduledAt.toEpochMilli())
         }
+        writeOneTimePause(editor, oneTimePause)
         editor.commit()
         return saved
+    }
+
+    fun loadOneTimePause(): AutomationOneTimePause? {
+        val raw = preferences.getString(KEY_ONE_TIME_PAUSE, null) ?: return null
+        return runCatching {
+            val json = JSONObject(raw)
+            val phase = enumValueOrDefault(
+                json.optString("phase"),
+                AutomationOneTimePausePhase.PENDING
+            )
+            AutomationOneTimePause(
+                workDate = LocalDate.parse(json.getString("workDate")),
+                requestedAt = Instant.ofEpochMilli(json.getLong("requestedAt")),
+                phase = phase,
+                switchArmed = json.optBoolean("switchArmed", phase == AutomationOneTimePausePhase.PENDING)
+            )
+        }.getOrNull()
+    }
+
+    @Synchronized
+    @SuppressLint("ApplySharedPref") // The next alarm must observe the durable pause state.
+    fun saveOneTimePause(pause: AutomationOneTimePause?) {
+        val editor = preferences.edit()
+        writeOneTimePause(editor, pause)
+        editor.commit()
     }
 
     fun lastCompletedBoundaryId(): String? {
@@ -65,12 +96,16 @@ class AutomationConfigStore(context: Context) {
 
     @Synchronized
     @SuppressLint("ApplySharedPref") // Completion must be durable before a duplicate broadcast can arrive.
-    fun markBoundaryCompleted(result: AutomationExecutionResult) {
-        preferences.edit()
+    fun markBoundaryCompleted(
+        result: AutomationExecutionResult,
+        oneTimePauseAfter: AutomationOneTimePause?
+    ) {
+        val editor = preferences.edit()
             .putString(KEY_LAST_COMPLETED_BOUNDARY, result.boundaryId)
             .putLong(KEY_LAST_COMPLETED_SCHEDULED_AT, result.scheduledAt.toEpochMilli())
             .putString(KEY_LAST_RESULT, result.toJson().toString())
-            .commit()
+        writeOneTimePause(editor, oneTimePauseAfter)
+        editor.commit()
     }
 
     fun saveAttemptResult(result: AutomationExecutionResult) {
@@ -92,6 +127,25 @@ class AutomationConfigStore(context: Context) {
         put("selectedPackages", JSONArray().apply { selectedPackages.sorted().forEach(::put) })
     }
 
+    private fun writeOneTimePause(
+        editor: android.content.SharedPreferences.Editor,
+        pause: AutomationOneTimePause?
+    ) {
+        if (pause == null) {
+            editor.remove(KEY_ONE_TIME_PAUSE)
+        } else {
+            editor.putString(
+                KEY_ONE_TIME_PAUSE,
+                JSONObject().apply {
+                    put("workDate", pause.workDate.toString())
+                    put("requestedAt", pause.requestedAt.toEpochMilli())
+                    put("phase", pause.phase.name)
+                    put("switchArmed", pause.switchArmed)
+                }.toString()
+            )
+        }
+    }
+
     private fun JSONArray?.toStringSet(): Set<String> {
         if (this == null) return emptySet()
         return (0 until length())
@@ -109,6 +163,7 @@ class AutomationConfigStore(context: Context) {
         private const val KEY_LAST_COMPLETED_BOUNDARY = "last_completed_boundary"
         private const val KEY_LAST_COMPLETED_SCHEDULED_AT = "last_completed_scheduled_at"
         private const val KEY_LAST_RESULT = "last_result_json"
+        private const val KEY_ONE_TIME_PAUSE = "one_time_pause_json"
     }
 }
 
@@ -136,7 +191,8 @@ data class AutomationExecutionResult(
     val executedAt: Instant,
     val triggerReason: String,
     val completed: Boolean,
-    val appResults: List<AutomationAppResult>
+    val appResults: List<AutomationAppResult>,
+    val outcome: AutomationExecutionOutcome = AutomationExecutionOutcome.APPLIED
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("boundaryId", boundaryId)
@@ -145,6 +201,7 @@ data class AutomationExecutionResult(
         put("executedAt", executedAt.toEpochMilli())
         put("triggerReason", triggerReason)
         put("completed", completed)
+        put("outcome", outcome.name)
         put("appResults", JSONArray().apply {
             appResults.forEach { result ->
                 put(JSONObject().apply {
@@ -175,7 +232,10 @@ data class AutomationExecutionResult(
                         notificationStatus = AutomationOperationStatus.valueOf(item.getString("notificationStatus")),
                         detail = item.optString("detail")
                     )
-                }
+                },
+                outcome = enumValues<AutomationExecutionOutcome>().firstOrNull {
+                    it.name == json.optString("outcome")
+                } ?: AutomationExecutionOutcome.APPLIED
             )
         }
     }

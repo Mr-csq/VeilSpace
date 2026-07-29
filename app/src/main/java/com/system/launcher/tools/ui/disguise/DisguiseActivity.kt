@@ -19,6 +19,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.updateLayoutParams
 import com.system.launcher.tools.MainActivity
+import com.system.launcher.tools.PrivacySpaceApp
 import com.system.launcher.tools.databinding.ActivityDisguiseBinding
 import com.system.launcher.tools.work.WorkProfileManager
 import kotlin.math.roundToInt
@@ -218,6 +219,8 @@ class DisguiseActivity : AppCompatActivity() {
             Log.w(TAG, "Reject privacy entry outside the managed profile")
             return
         }
+        (application as PrivacySpaceApp).privacySession.authorize()
+        Log.i(TAG, "Authorized in-memory privacy session from managed-profile triple tap")
         startActivity(Intent(this, MainActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or

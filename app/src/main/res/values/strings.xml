@@ -19,6 +19,15 @@
     <string name="automation_enable_description">启用工作模式</string>
     <string name="automation_current_state">当前状态</string>
     <string name="automation_next_execution">下一次执行</string>
+    <string name="automation_pause_once_title">停用下一次工作时段</string>
+    <string name="automation_pause_once_summary">开始与结束边界都会跳过，完成后自动恢复</string>
+    <string name="automation_pause_once_description">停用下一次工作时段</string>
+    <string name="automation_pause_once_requires_enabled">请先保存并启用工作模式</string>
+    <string name="automation_pause_once_no_target">当前没有可停用的下一次工作时段</string>
+    <string name="automation_pause_once_available">开启后将停用 %1$s；该时段不会更改应用后台运行或通知权限</string>
+    <string name="automation_pause_once_pending">已安排停用 %1$s；该时段结束后自动恢复</string>
+    <string name="automation_pause_once_active">正在停用 %1$s；结束边界跳过后自动恢复</string>
+    <string name="automation_pause_once_enabled_message">已停用 %1$s 的工作时段</string>
     <string name="automation_plan_section">工作计划</string>
     <string name="automation_plan_summary">只在开始和结束时刻执行一次，不持续覆盖手动修改</string>
     <string name="automation_boundary_time">工作时段</string>

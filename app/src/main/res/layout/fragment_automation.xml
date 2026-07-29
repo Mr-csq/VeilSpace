@@ -181,6 +181,54 @@
                         android:textSize="14sp"
                         android:textStyle="bold"
                         tools:text="开始 · 2026-07-20 周一 09:00" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/space_divider" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:minHeight="56dp"
+                        android:orientation="horizontal">
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/automation_pause_once_title"
+                                android:textColor="@color/space_text_primary"
+                                android:textSize="14sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tv_pause_once_summary"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/automation_pause_once_summary"
+                                android:textColor="@color/space_text_secondary"
+                                android:textSize="12sp"
+                                tools:text="开启后将停用 2026-07-28 周二；该时段不会更改应用后台运行或通知权限" />
+                        </LinearLayout>
+
+                        <com.google.android.material.materialswitch.MaterialSwitch
+                            android:id="@+id/switch_pause_once"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="10dp"
+                            android:contentDescription="@string/automation_pause_once_description"
+                            android:enabled="false" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <TextView

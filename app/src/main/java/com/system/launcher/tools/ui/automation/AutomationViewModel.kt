@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.system.launcher.tools.automation.AutomationConfig
 import com.system.launcher.tools.automation.AutomationCoordinator
+import com.system.launcher.tools.automation.AutomationOneTimePauseUpdateResult
 import com.system.launcher.tools.automation.AutomationSaveResult
 import com.system.launcher.tools.automation.AutomationUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +39,9 @@ class AutomationViewModel @Inject constructor(
     private val _saving = MutableLiveData(false)
     val saving: LiveData<Boolean> = _saving
 
+    private val _updatingOneTimePause = MutableLiveData(false)
+    val updatingOneTimePause: LiveData<Boolean> = _updatingOneTimePause
+
     fun refresh(recoverMissedBoundary: Boolean = true) {
         viewModelScope.launch {
             val loaded = withContext(Dispatchers.IO) {
@@ -64,6 +68,15 @@ class AutomationViewModel @Inject constructor(
                 }
             }
             _saving.value = false
+            onComplete(result)
+        }
+    }
+
+    fun setOneTimePause(enabled: Boolean, onComplete: (AutomationOneTimePauseUpdateResult) -> Unit) {
+        viewModelScope.launch {
+            _updatingOneTimePause.value = true
+            val result = withContext(Dispatchers.IO) { coordinator.setOneTimePause(enabled) }
+            _updatingOneTimePause.value = false
             onComplete(result)
         }
     }

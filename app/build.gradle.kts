@@ -1,4 +1,5 @@
 import java.security.MessageDigest
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -7,6 +8,27 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+val versionPropertiesFile = rootProject.file("version.properties")
+val versionProperties = Properties().apply {
+    if (versionPropertiesFile.exists()) versionPropertiesFile.inputStream().use(::load)
+}
+val packagingBuild = gradle.startParameter.taskNames.any { taskName ->
+    taskName.contains("assemble", ignoreCase = true) || taskName.contains("bundle", ignoreCase = true)
+}
+fun incrementPatchVersion(version: String): String {
+    val parts = version.split(".")
+    require(parts.size == 3 && parts.all { it.toIntOrNull() != null }) {
+        "VERSION_NAME must use major.minor.patch: $version"
+    }
+    return "${parts[0]}.${parts[1]}.${parts[2].toInt() + 1}"
+}
+var buildVersionName = versionProperties.getProperty("VERSION_NAME", "1.6.0")
+var buildVersionCode = versionProperties.getProperty("VERSION_CODE", "7").toInt()
+if (packagingBuild) {
+    buildVersionName = incrementPatchVersion(buildVersionName)
+    buildVersionCode += 1
+    versionPropertiesFile.writeText("VERSION_NAME=$buildVersionName\nVERSION_CODE=$buildVersionCode\n")
+}
 android {
     namespace = "com.system.launcher.tools"
     compileSdk = 36
@@ -15,8 +37,8 @@ android {
         applicationId = "com.system.launcher.tools"
         minSdk = 36
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = buildVersionCode
+        versionName = buildVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -53,6 +53,56 @@ data class AutomationBoundary(
     val scheduledAt: Instant
 )
 
+enum class AutomationOneTimePausePhase {
+    PENDING,
+    ACTIVE
+}
+
+data class AutomationOneTimePause(
+    val workDate: LocalDate,
+    val requestedAt: Instant,
+    val phase: AutomationOneTimePausePhase = AutomationOneTimePausePhase.PENDING,
+    val switchArmed: Boolean = phase == AutomationOneTimePausePhase.PENDING
+)
+
+data class AutomationOneTimePauseDecision(
+    val skipBoundary: Boolean,
+    val pauseAfterBoundary: AutomationOneTimePause?
+)
+
+object AutomationOneTimePausePolicy {
+    fun decide(
+        pause: AutomationOneTimePause?,
+        boundary: AutomationBoundary
+    ): AutomationOneTimePauseDecision {
+        if (pause == null) return AutomationOneTimePauseDecision(false, null)
+        if (boundary.workDate.isBefore(pause.workDate)) {
+            return AutomationOneTimePauseDecision(false, pause)
+        }
+        if (boundary.workDate.isAfter(pause.workDate)) {
+            return AutomationOneTimePauseDecision(false, null)
+        }
+        return when (boundary.type) {
+            AutomationBoundaryType.START -> AutomationOneTimePauseDecision(
+                skipBoundary = true,
+                pauseAfterBoundary = pause.copy(
+                    phase = AutomationOneTimePausePhase.ACTIVE,
+                    switchArmed = false
+                )
+            )
+            AutomationBoundaryType.END -> AutomationOneTimePauseDecision(
+                skipBoundary = true,
+                pauseAfterBoundary = null
+            )
+        }
+    }
+}
+
+enum class AutomationExecutionOutcome {
+    APPLIED,
+    SKIPPED_ONCE
+}
+
 enum class WorkdayClassification {
     WORKDAY,
     HOLIDAY,

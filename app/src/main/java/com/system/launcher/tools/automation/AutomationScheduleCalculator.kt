@@ -11,11 +11,12 @@ class AutomationScheduleCalculator(
 ) {
     data class Snapshot(
         val latestBoundary: AutomationBoundary?,
-        val nextBoundary: AutomationBoundary?
+        val nextBoundary: AutomationBoundary?,
+        val nextStartBoundary: AutomationBoundary?
     )
 
     fun snapshot(config: AutomationConfig, now: Instant, zoneId: ZoneId): Snapshot {
-        if (!config.enabled || config.validationErrors().isNotEmpty()) return Snapshot(null, null)
+        if (!config.enabled || config.validationErrors().isNotEmpty()) return Snapshot(null, null, null)
         val localToday = now.atZone(zoneId).toLocalDate()
         val boundaries = buildList {
             // A long statutory holiday must still be able to recover the latest
@@ -33,7 +34,10 @@ class AutomationScheduleCalculator(
 
         return Snapshot(
             latestBoundary = boundaries.lastOrNull { !it.scheduledAt.isAfter(now) },
-            nextBoundary = boundaries.firstOrNull { it.scheduledAt.isAfter(now) }
+            nextBoundary = boundaries.firstOrNull { it.scheduledAt.isAfter(now) },
+            nextStartBoundary = boundaries.firstOrNull {
+                it.type == AutomationBoundaryType.START && it.scheduledAt.isAfter(now)
+            }
         )
     }
 

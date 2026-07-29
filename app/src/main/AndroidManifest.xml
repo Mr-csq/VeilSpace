@@ -117,18 +117,6 @@
             </intent-filter>
         </receiver>
 
-        <activity
-            android:name=".work.LauncherShortcutCleanupActivity"
-            android:exported="true"
-            android:permission="com.system.launcher.tools.permission.INTERNAL_CROSS_PROFILE"
-            android:theme="@style/Theme.Transparent"
-            android:excludeFromRecents="true"
-            android:noHistory="true">
-            <intent-filter>
-                <action android:name="com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity>
 
         <receiver
             android:name=".work.LauncherShortcutCleanupReceiver"

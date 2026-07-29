@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 class PrivacySpaceApp : Application() {
     @Inject lateinit var automationCoordinator: AutomationCoordinator
     @Inject lateinit var workProfileManager: WorkProfileManager
+    val privacySession = PrivacySessionController()
 
     override fun onCreate() {
         super.onCreate()

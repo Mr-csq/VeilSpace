@@ -13,14 +13,19 @@ import com.system.launcher.tools.automation.AutomationBoundaryType
 import com.system.launcher.tools.automation.AutomationConfig
 import com.system.launcher.tools.automation.AutomationDateMode
 import com.system.launcher.tools.automation.AutomationExecutionResult
+import com.system.launcher.tools.automation.AutomationExecutionOutcome
+import com.system.launcher.tools.automation.AutomationOneTimePausePhase
 import com.system.launcher.tools.automation.AutomationOperationStatus
+import com.system.launcher.tools.automation.AutomationUiState
 import com.system.launcher.tools.databinding.FragmentAutomationBinding
 import com.system.launcher.tools.databinding.RowAutomationAppBinding
 import com.system.launcher.tools.ui.common.SpaceUi
 import com.system.launcher.tools.ui.common.showSpaceMessage
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.Duration
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -34,6 +39,11 @@ class AutomationFragment : Fragment() {
     private var initialRenderComplete = false
     private var detailsExpanded = false
     private var workdayDataWarning: String? = null
+    private var latestScreenState: AutomationScreenState? = null
+    private var renderingOneTimePause = false
+    private var oneTimePauseUpdateInProgress = false
+    private var oneTimePauseCanToggle = false
+    private var boundaryRefresh: Runnable? = null
     private val selectedPackages = linkedSetOf<String>()
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -84,6 +94,11 @@ class AutomationFragment : Fragment() {
                     .onFailure { showSpaceMessage("系统未提供精确闹钟授权页面") }
             }
         }
+        binding.switchPauseOnce.setOnCheckedChangeListener { _, checked ->
+            if (!renderingOneTimePause) {
+                updateOneTimePause(checked)
+            }
+        }
         SpaceUi.setSafeClickListener(binding.btnToggleDetails) {
             detailsExpanded = !detailsExpanded
             renderDetailsVisibility()
@@ -98,6 +113,7 @@ class AutomationFragment : Fragment() {
 
     private fun observeState() {
         viewModel.state.observe(viewLifecycleOwner) { state ->
+            latestScreenState = state
             draft = state.automation.config
             workdayDataWarning = state.automation.workdayDataWarning
             selectedPackages.clear()
@@ -111,6 +127,10 @@ class AutomationFragment : Fragment() {
         viewModel.saving.observe(viewLifecycleOwner) { saving ->
             binding.btnSave.isEnabled = !saving
             binding.btnSave.text = if (saving) "正在保存" else "保存并重新安排"
+        }
+        viewModel.updatingOneTimePause.observe(viewLifecycleOwner) { updating ->
+            oneTimePauseUpdateInProgress = updating
+            renderOneTimePauseEnabled()
         }
     }
 
@@ -180,18 +200,29 @@ class AutomationFragment : Fragment() {
         }
         updateSelectedSummary()
     }
+
     private fun renderRuntimeState(state: AutomationScreenState) {
         val automation = state.automation
         val latest = automation.scheduleSnapshot.latestBoundary
+        val pause = automation.oneTimePause
         binding.tvCurrentState.text = when {
             !automation.config.enabled -> "已关闭"
+            pause?.phase == AutomationOneTimePausePhase.ACTIVE -> "本次工作时段已停用，后台运行与通知策略保持不变"
             latest == null -> "等待可用工作日数据或首个边界"
             latest.type == AutomationBoundaryType.START -> "计划处于允许时段（保存不会回溯执行；手动修改保持到下一边界）"
             else -> "计划处于关闭时段（结束边界不会强行中断前台应用）"
         }
         binding.tvNextBoundary.text = automation.scheduleSnapshot.nextBoundary?.let { boundary ->
-            "${if (boundary.type == AutomationBoundaryType.START) "开始" else "结束"} · ${formatInstant(boundary.scheduledAt)}"
+            val action = when {
+                pause?.workDate == boundary.workDate && boundary.type == AutomationBoundaryType.START -> "跳过开始"
+                pause?.workDate == boundary.workDate -> "跳过结束"
+                boundary.type == AutomationBoundaryType.START -> "开始"
+                else -> "结束"
+            }
+            "$action · ${formatInstant(boundary.scheduledAt)}"
         } ?: automation.alarmStatus.message
+        renderOneTimePause(automation)
+        scheduleBoundaryRefresh(automation)
         binding.tvExactStatus.text = automation.alarmStatus.message
         binding.btnExactPermission.visibility = if (viewModel.createExactAlarmPermissionIntent() == null) View.GONE else View.VISIBLE
         val metadata = automation.workdayMetadata
@@ -205,6 +236,88 @@ class AutomationFragment : Fragment() {
         binding.tvLastResult.text = formatLastResult(automation.lastResult)
         renderDetailsVisibility()
     }
+
+    private fun renderOneTimePause(automation: AutomationUiState) {
+        val pause = automation.oneTimePause
+        val target = pause?.workDate ?: automation.scheduleSnapshot.nextStartBoundary?.workDate
+        renderingOneTimePause = true
+        binding.switchPauseOnce.isChecked = pause?.switchArmed == true
+        renderingOneTimePause = false
+        oneTimePauseCanToggle = pause?.switchArmed == true || (
+            pause == null &&
+                automation.config.enabled &&
+                automation.scheduleSnapshot.nextStartBoundary != null
+            )
+        binding.tvPauseOnceSummary.text = when {
+            pause == null && !automation.config.enabled -> getString(
+                com.system.launcher.tools.R.string.automation_pause_once_requires_enabled
+            )
+            pause == null && target == null -> getString(
+                com.system.launcher.tools.R.string.automation_pause_once_no_target
+            )
+            pause == null -> getString(
+                com.system.launcher.tools.R.string.automation_pause_once_available,
+                formatWorkDate(target!!)
+            )
+            pause.phase == AutomationOneTimePausePhase.PENDING -> getString(
+                com.system.launcher.tools.R.string.automation_pause_once_pending,
+                formatWorkDate(pause.workDate)
+            )
+            else -> getString(
+                com.system.launcher.tools.R.string.automation_pause_once_active,
+                formatWorkDate(pause.workDate)
+            )
+        }
+        renderOneTimePauseEnabled()
+    }
+
+    private fun scheduleBoundaryRefresh(automation: AutomationUiState) {
+        boundaryRefresh?.let(binding.root::removeCallbacks)
+        boundaryRefresh = null
+        val nextBoundary = automation.scheduleSnapshot.nextBoundary ?: return
+        val delayMillis = Duration.between(Instant.now(), nextBoundary.scheduledAt)
+            .toMillis()
+            .coerceAtLeast(0L) + BOUNDARY_REFRESH_GRACE_MILLIS
+        val refresh = Runnable {
+            boundaryRefresh = null
+            viewModel.refresh(recoverMissedBoundary = true)
+        }
+        boundaryRefresh = refresh
+        binding.root.postDelayed(refresh, delayMillis)
+    }
+
+    private fun renderOneTimePauseEnabled() {
+        binding.switchPauseOnce.isEnabled = oneTimePauseCanToggle && !oneTimePauseUpdateInProgress
+    }
+
+    private fun updateOneTimePause(enabled: Boolean) {
+        if (!oneTimePauseCanToggle || oneTimePauseUpdateInProgress) return
+        viewModel.setOneTimePause(enabled) { result ->
+            _binding ?: return@setOneTimePause
+            val current = latestScreenState ?: return@setOneTimePause
+            val updatedAutomation = current.automation.copy(
+                oneTimePause = result.pause,
+                alarmStatus = result.alarmStatus
+            )
+            val updated = current.copy(automation = updatedAutomation)
+            latestScreenState = updated
+            renderRuntimeState(updated)
+            result.error?.let {
+                showSpaceMessage(it)
+            } ?: if (result.pause == null) {
+                showSpaceMessage("已取消一次停用，后续边界将按计划执行")
+            } else {
+                showSpaceMessage(
+                    getString(
+                        com.system.launcher.tools.R.string.automation_pause_once_enabled_message,
+                        formatWorkDate(result.pause.workDate)
+                    )
+                )
+            }
+        }
+    }
+
+    private fun formatWorkDate(date: LocalDate): String = WORK_DATE_FORMATTER.format(date)
 
     private fun renderDetailsVisibility() {
         binding.detailsContainer.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
@@ -272,6 +385,10 @@ class AutomationFragment : Fragment() {
 
     private fun formatLastResult(result: AutomationExecutionResult?): String {
         if (result == null) return "尚无执行记录"
+        if (result.outcome == AutomationExecutionOutcome.SKIPPED_ONCE) {
+            val boundary = if (result.boundaryType == AutomationBoundaryType.START) "开始" else "结束"
+            return "$boundary · ${formatInstant(result.executedAt)} · 已按“停用一次”跳过"
+        }
         val failures = result.appResults.count { app ->
             app.keepAliveStatus in FAILURE_STATUSES || app.notificationStatus in FAILURE_STATUSES
         }
@@ -307,12 +424,16 @@ class AutomationFragment : Fragment() {
 
 
     override fun onDestroyView() {
-        super.onDestroyView()
+        boundaryRefresh?.let(binding.root::removeCallbacks)
+        boundaryRefresh = null
         _binding = null
+        super.onDestroyView()
     }
 
     companion object {
+        private const val BOUNDARY_REFRESH_GRACE_MILLIS = 250L
         private val DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd E HH:mm", Locale.CHINA)
+        private val WORK_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd E", Locale.CHINA)
         private val FAILURE_STATUSES = setOf(
             AutomationOperationStatus.FAILED,
             AutomationOperationStatus.NO_PROFILE_OWNER,

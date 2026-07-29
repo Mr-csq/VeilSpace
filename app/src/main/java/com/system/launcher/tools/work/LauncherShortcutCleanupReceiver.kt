@@ -3,8 +3,10 @@ package com.system.launcher.tools.work
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
+import android.app.admin.DevicePolicyManager
 import android.content.Intent
 import android.util.Log
+import com.system.launcher.tools.data.policy.ProfileAppPolicyTable
 
 class LauncherShortcutCleanupReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -21,9 +23,14 @@ class LauncherShortcutCleanupReceiver : BroadcastReceiver() {
         val componentHints = intent.getStringArrayListExtra(WorkProfileManager.EXTRA_CLEANUP_SHORTCUT_COMPONENTS)
             ?.mapNotNull(ComponentName::unflattenFromString)
             .orEmpty()
+        val profileOwner = (context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager)
+            .isProfileOwnerApp(context.packageName)
+        val cleanupInstalledPackageShortcuts = profileOwner &&
+            (allowGenericUserAppCleanup || ProfileAppPolicyTable.resolve(packageName).removeLauncherShortcutsWhenInstalledInManagedProfile)
         val cleaned = LauncherShortcutCleaner.cleanup(
             context = context,
             packageName = packageName,
+            cleanupInstalledPackageShortcuts = cleanupInstalledPackageShortcuts,
             allowGenericUserAppCleanup = allowGenericUserAppCleanup,
             labelHints = labelHints,
             componentHints = componentHints
