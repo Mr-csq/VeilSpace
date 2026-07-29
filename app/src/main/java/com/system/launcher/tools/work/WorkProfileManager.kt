@@ -136,6 +136,7 @@ class WorkProfileManager @Inject constructor(
             val admin = getAdminComponent()
             enableManagedProfile(admin)
             configureProfileInstallPolicy(admin)
+            configureProfileAccessibilityPolicy(admin)
             showPrivacySpaceLauncherAliasInProfile()
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
@@ -190,6 +191,19 @@ class WorkProfileManager @Inject constructor(
     private fun configureProfileInstallPolicy(admin: ComponentName) {
         clearProfileInstallRestrictions(admin)
         Log.i(TAG, "Configured managed profile install policy")
+    }
+
+    private fun configureProfileAccessibilityPolicy(admin: ComponentName) {
+        runCatching {
+            val applied = devicePolicyManager.setPermittedAccessibilityServices(admin, emptyList())
+            if (applied) {
+                Log.i(TAG, "Blocked non-system accessibility services in managed profile")
+            } else {
+                Log.w(TAG, "Unable to block non-system accessibility services in managed profile")
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "Error configuring managed profile accessibility policy", error)
+        }
     }
 
     private fun clearProfileInstallRestrictions(admin: ComponentName) {
