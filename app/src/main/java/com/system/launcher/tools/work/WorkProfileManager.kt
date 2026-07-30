@@ -21,7 +21,6 @@ import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
 import android.provider.Settings
-import android.util.Log
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.model.LaunchVerification
@@ -63,7 +62,6 @@ class WorkProfileManager @Inject constructor(
     private val pendingKeepAliveHidePackages = mutableSetOf<String>()
 
     companion object {
-        private const val TAG = "WorkProfileManager"
         const val ACTION_OPEN_REAL_GAME_CENTER = "com.system.launcher.tools.action.OPEN_REAL_GAME_CENTER"
         const val ACTION_CLEANUP_LAUNCHER_SHORTCUT = "com.system.launcher.tools.action.CLEANUP_LAUNCHER_SHORTCUT"
         const val EXTRA_CLEANUP_PACKAGE_NAME = "com.system.launcher.tools.extra.CLEANUP_PACKAGE_NAME"
@@ -113,15 +111,15 @@ class WorkProfileManager @Inject constructor(
             val currentUser = android.os.Process.myUserHandle()
             val launcherProfiles = launcherApps.profiles
             val otherLauncherProfiles = launcherProfiles.filter { it != currentUser }
-            Log.i(TAG, "checkIfProfileExists launcherApps: current=$currentUser, total=${launcherProfiles.size}, otherProfiles=${otherLauncherProfiles.size}")
+
             if (otherLauncherProfiles.isNotEmpty()) return true
 
             val userProfiles = userManager.userProfiles
             val otherUserProfiles = userProfiles.filter { it != currentUser }
-            Log.i(TAG, "checkIfProfileExists userManager: current=$currentUser, total=${userProfiles.size}, otherProfiles=${otherUserProfiles.size}")
+
             otherUserProfiles.isNotEmpty() || isProfileOwner()
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking profile existence", e)
+
             false
         }
     }
@@ -129,7 +127,7 @@ class WorkProfileManager @Inject constructor(
     fun configureCrossProfileEntry(): Boolean {
         return try {
             if (!isProfileOwner()) {
-                Log.w(TAG, "Not Profile Owner, cannot configure cross-profile entry")
+
                 return false
             }
 
@@ -142,7 +140,7 @@ class WorkProfileManager @Inject constructor(
             hideGameCenterProxyInProfile()
             hidePersonalMediaImportActivityInProfile()
             devicePolicyManager.setCrossProfilePackages(admin, setOf(context.packageName))
-            Log.i(TAG, "Allowed cross-profile package: ${context.packageName}")
+
             devicePolicyManager.clearCrossProfileIntentFilters(admin)
             devicePolicyManager.addCrossProfileIntentFilter(
                 admin,
@@ -159,15 +157,10 @@ class WorkProfileManager @Inject constructor(
                 IntentFilter(ProfileMediaTransferContract.ACTION_IMPORT_MEDIA_TO_PERSONAL).apply { addCategory(Intent.CATEGORY_DEFAULT) },
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
             )
-            devicePolicyManager.addCrossProfileIntentFilter(
-                admin,
-                IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) },
-                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT
-            )
-            Log.i(TAG, "Configured cross-profile privacy entry")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error configuring cross-profile entry", e)
+
             false
         }
     }
@@ -180,29 +173,22 @@ class WorkProfileManager @Inject constructor(
         return try {
             devicePolicyManager.setProfileName(admin, "系统工具")
             devicePolicyManager.setProfileEnabled(admin)
-            Log.i(TAG, "Managed profile enabled")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error enabling managed profile", e)
+
             false
         }
     }
 
     private fun configureProfileInstallPolicy(admin: ComponentName) {
         clearProfileInstallRestrictions(admin)
-        Log.i(TAG, "Configured managed profile install policy")
+
     }
 
     private fun configureProfileAccessibilityPolicy(admin: ComponentName) {
         runCatching {
-            val applied = devicePolicyManager.setPermittedAccessibilityServices(admin, emptyList())
-            if (applied) {
-                Log.i(TAG, "Blocked non-system accessibility services in managed profile")
-            } else {
-                Log.w(TAG, "Unable to block non-system accessibility services in managed profile")
-            }
-        }.onFailure { error ->
-            Log.w(TAG, "Error configuring managed profile accessibility policy", error)
+            devicePolicyManager.setPermittedAccessibilityServices(admin, emptyList())
         }
     }
 
@@ -216,8 +202,6 @@ class WorkProfileManager @Inject constructor(
         restrictions.forEach { restriction ->
             runCatching {
                 devicePolicyManager.clearUserRestriction(admin, restriction)
-            }.onFailure { error ->
-                Log.w(TAG, "Unable to clear user restriction: $restriction", error)
             }
         }
     }
@@ -230,20 +214,13 @@ class WorkProfileManager @Inject constructor(
             isProfileOwner = profileOwner,
             hasCrossProfileTarget = crossProfileTarget,
             hasOtherProfile = otherProfile
-        ).also { state ->
-            Log.i(
-                TAG,
-                "connectionState=$state profileOwner=$profileOwner crossProfileTarget=$crossProfileTarget otherProfile=$otherProfile"
-            )
-        }
+        )
     }
 
     fun hasCrossProfileTarget(): Boolean {
         return runCatching {
             val currentUser = android.os.Process.myUserHandle()
             getCrossProfileApps().targetUserProfiles.any { it != currentUser }
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to inspect cross-profile targets", error)
         }.getOrDefault(false)
     }
 
@@ -251,7 +228,7 @@ class WorkProfileManager @Inject constructor(
         return try {
             devicePolicyManager.isProfileOwnerApp(context.packageName)
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking profile owner status", e)
+
             false
         }
     }
@@ -261,7 +238,7 @@ class WorkProfileManager @Inject constructor(
             val currentUser = android.os.Process.myUserHandle()
             launcherApps.profiles.firstOrNull { it != currentUser }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting other profile user handle", e)
+
             null
         }
     }
@@ -272,11 +249,11 @@ class WorkProfileManager @Inject constructor(
         return try {
             if (userHandle == null) return false
             val currentlyQuiet = runCatching { userManager.isQuietModeEnabled(userHandle) }.getOrDefault(false)
-            Log.i(TAG, "requestManagedProfileAvailable user=$userHandle quiet=$currentlyQuiet")
+
             if (currentlyQuiet) userManager.requestQuietModeEnabled(false, userHandle)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error requesting managed profile availability", e)
+
             false
         }
     }
@@ -298,6 +275,12 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.ui.files.PersonalMediaImportActivity")
     }
 
+    fun hasMediaTransferCrossProfileAccess(): Boolean {
+        return runCatching { getCrossProfileApps().canInteractAcrossProfiles() }
+
+            .getOrDefault(false)
+    }
+
     fun startMediaTransferToPersonal(
         activity: Activity,
         transferId: String,
@@ -307,38 +290,35 @@ class WorkProfileManager @Inject constructor(
         onLaunchResult: (Boolean) -> Unit
     ): Boolean {
         if (!isProfileOwner()) {
-            Log.w(TAG, "Reject media transfer: current user is not Profile Owner")
+
             return false
         }
         if (transferId.isBlank()) {
-            Log.w(TAG, "Reject media transfer: transfer ID is blank")
+
             return false
         }
         if (mediaUris.isEmpty()) {
-            Log.w(TAG, "Reject media transfer: URI list is empty")
+
             return false
         }
         if (mediaUris.size > ProfileMediaTransferContract.MAX_ITEMS_PER_TRANSFER) {
-            Log.w(TAG, "Reject media transfer: count=${mediaUris.size} exceeds limit")
+
             return false
         }
         val personalUser = findPersonalProfileTransferTarget() ?: run {
-            Log.e(
-                TAG,
-                "Reject media transfer: no personal target; crossProfileTargets=${crossProfileTargetSnapshot()} launcherProfiles=${launcherApps.profiles}"
-            )
+
             return false
         }
         val preparationCallback = object : android.os.ResultReceiver(Handler(Looper.getMainLooper())) {
             override fun onReceiveResult(resultCode: Int, resultData: android.os.Bundle?) {
                 if (resultCode != ProfileMediaTransferSourceService.PREPARE_COMPLETE) {
-                    Log.e(TAG, "Media source preparation failed id=$transferId result=$resultCode")
+
                     onLaunchResult(false)
                     return
                 }
                 val prepared = ProfileMediaTransferContract.readPreparedSource(resultData)
                 if (prepared == null) {
-                    Log.e(TAG, "Media source preparation returned invalid data id=$transferId")
+
                     onLaunchResult(false)
                     return
                 }
@@ -350,8 +330,6 @@ class WorkProfileManager @Inject constructor(
                         sourceReceiver = prepared.sourceReceiver,
                         resultCallback = resultCallback
                     )
-                }.onFailure { error ->
-                    Log.e(TAG, "Unable to create prepared media transfer intent id=$transferId", error)
                 }.getOrNull()
                 if (importIntent == null) {
                     prepared.sourceReceiver.send(
@@ -368,17 +346,14 @@ class WorkProfileManager @Inject constructor(
                         personalUser,
                         activity
                     )
-                    Log.i(
-                        TAG,
-                        "Started personal-profile media transfer with isolated source id=$transferId operation=$operation count=${mediaUris.size} target=$personalUser"
-                    )
+
                     true
                 }.onFailure { error ->
                     prepared.sourceReceiver.send(
                         ProfileMediaTransferContract.SOURCE_REQUEST_CLOSE,
                         android.os.Bundle.EMPTY
                     )
-                    Log.e(TAG, "Unable to launch prepared personal-profile media transfer id=$transferId", error)
+
                 }.getOrDefault(false)
                 onLaunchResult(launched)
             }
@@ -389,59 +364,22 @@ class WorkProfileManager @Inject constructor(
             transferId = transferId,
             uris = mediaUris,
             callback = preparationCallback
-        ).also { accepted ->
-            if (accepted) {
-                Log.i(TAG, "Requested isolated media source preparation id=$transferId count=${mediaUris.size}")
-            }
-        }
+        )
     }
 
     private fun findPersonalProfileTransferTarget(): UserHandle? {
         val currentUser = android.os.Process.myUserHandle()
         val crossProfileTargets = runCatching { getCrossProfileApps().targetUserProfiles }
-            .onFailure { error ->
-                Log.w(TAG, "Unable to read CrossProfileApps transfer targets", error)
-            }
+
             .getOrDefault(emptyList())
         val launcherProfiles = runCatching { launcherApps.profiles }
-            .onFailure { error -> Log.w(TAG, "Unable to read LauncherApps transfer profiles", error) }
+
             .getOrDefault(emptyList())
-        return CrossProfileTargetSelector.select(currentUser, crossProfileTargets, launcherProfiles)?.also { target ->
-            val source = if (target in crossProfileTargets) "CrossProfileApps" else "LauncherApps fallback"
-            Log.i(TAG, "Resolved personal transfer target from $source: $target")
-        }
+        return CrossProfileTargetSelector.select(currentUser, crossProfileTargets, launcherProfiles)
     }
 
     private fun crossProfileTargetSnapshot(): List<UserHandle> {
         return runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
-    }
-
-    fun redirectToManagedProfile(
-        activity: Activity,
-        targetActivity: Class<out Activity>
-    ): Boolean {
-        return try {
-            if (isProfileOwner()) return false
-            val currentUser = android.os.Process.myUserHandle()
-            val targetUsers = runCatching { getCrossProfileApps().targetUserProfiles }.getOrDefault(emptyList())
-            Log.i(TAG, "redirectToManagedProfile currentUser=$currentUser targetUsers=$targetUsers launcherProfiles=${launcherApps.profiles}")
-            val workUser = targetUsers.firstOrNull { it != currentUser } ?: getOtherProfileUserHandle()
-            if (workUser == null) {
-                Log.w(TAG, "No managed profile target available for redirect")
-                return false
-            }
-            requestManagedProfileAvailable(workUser)
-            if (targetActivity.name == "${context.packageName}.MainActivity") {
-                getCrossProfileApps().startMainActivity(getPrivacyEntryComponent(), workUser)
-            } else {
-                getCrossProfileApps().startMainActivity(ComponentName(context, targetActivity), workUser)
-            }
-            activity.finish()
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Error redirecting to managed profile", e)
-            false
-        }
     }
 
     fun canRequestPackageInstalls(): Boolean {
@@ -468,8 +406,6 @@ class WorkProfileManager @Inject constructor(
         clearProfileInstallRestrictions(admin)
         runCatching {
             devicePolicyManager.setSecureSetting(admin, "install_non_market_apps", "1")
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to set install_non_market_apps secure setting", error)
         }
 
         var changed = false
@@ -481,27 +417,25 @@ class WorkProfileManager @Inject constructor(
                 if (isPackageInstalledInProfile(packageName)) {
                     changed = unhideAppInProfile(packageName) || changed
                 }
-            }.onFailure { error ->
-                Log.w(TAG, "Unable to repair install support package: $packageName", error)
             }
         }
-        Log.i(TAG, "Repaired profile install environment changed=$changed")
+
         return true
     }
 
     fun createProfileIntent(): Intent? {
         return try {
             if (checkIfProfileExists()) {
-                Log.w(TAG, "Work Profile already exists")
+
                 null
             } else if (!devicePolicyManager.isProvisioningAllowed(DevicePolicyManager.ACTION_PROVISION_MANAGED_PROFILE)) {
-                Log.e(TAG, "Provisioning not allowed on this device")
+
                 null
             } else {
                 createProvisioningIntent()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error preparing profile provisioning", e)
+
             null
         }
     }
@@ -520,10 +454,10 @@ class WorkProfileManager @Inject constructor(
             if (isProfileOwner()) {
                 devicePolicyManager.wipeData(0)
                 sharedPrefs.edit().clear().apply()
-                Log.i(TAG, "Work Profile removed")
+
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error removing profile", e)
+
         }
     }
 
@@ -534,38 +468,38 @@ class WorkProfileManager @Inject constructor(
     fun enableAppInProfile(packageName: String): Boolean {
         return try {
             if (!isProfileOwner()) {
-                Log.w(TAG, "Not Profile Owner, cannot install app into profile")
+
                 return false
             }
             if (!isPackageKnownInProfile(packageName)) {
-                Log.i(TAG, "Skip installExistingPackage for package not visible in profile: $packageName")
+
                 return false
             }
             val installed = devicePolicyManager.installExistingPackage(getAdminComponent(), packageName)
-            Log.i(TAG, "installExistingPackage result for $packageName = $installed")
+
             installed
         } catch (e: SecurityException) {
-            Log.w(TAG, "SecurityException enabling app: $packageName message=${e.message}")
+
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error enabling app: $packageName", e)
+
             false
         }
     }
     fun enableSystemAppInProfile(packageName: String): Boolean {
         return try {
             if (!isProfileOwner()) {
-                Log.w(TAG, "Not Profile Owner, cannot enable system app in profile")
+
                 return false
             }
             devicePolicyManager.enableSystemApp(getAdminComponent(), packageName)
-            Log.i(TAG, "Enabled system app in profile: $packageName")
+
             true
         } catch (e: SecurityException) {
-            Log.e(TAG, "SecurityException enabling system app: $packageName", e)
+
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error enabling system app: $packageName", e)
+
             false
         }
     }
@@ -585,7 +519,7 @@ class WorkProfileManager @Inject constructor(
         if (installed) {
             unhideAppInProfile(packageName)
         }
-        Log.i(TAG, "Prepared system candidate package=$packageName installed=$installed")
+
         return installed
     }
 
@@ -606,11 +540,7 @@ class WorkProfileManager @Inject constructor(
         if (isProfileOwner()) return false
         val workLauncherHidden = hidePrivacySpaceLauncherAliasInProfile()
         val personalLauncherHidden = hideGameCenterLauncherAliasInProfile()
-        Log.i(
-            TAG,
-            "Configured personal entry: workLauncherHidden=$workLauncherHidden, " +
-                "personalLauncherHidden=$personalLauncherHidden"
-        )
+
         return workLauncherHidden && personalLauncherHidden
     }
 
@@ -631,10 +561,10 @@ class WorkProfileManager @Inject constructor(
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
             packageManager.setComponentEnabledSetting(component, state, DONT_KILL_APP)
-            Log.i(TAG, "Set $label launcher alias enabled=$enabled component=$component")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting $label launcher alias enabled=$enabled component=$component", e)
+
             false
         }
     }
@@ -642,10 +572,10 @@ class WorkProfileManager @Inject constructor(
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
             packageManager.setComponentEnabledSetting(getGameCenterEntryComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set game center launcher alias enabled=$enabled")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting game center launcher alias enabled=$enabled", e)
+
             false
         }
     }
@@ -654,10 +584,10 @@ class WorkProfileManager @Inject constructor(
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
             packageManager.setComponentEnabledSetting(getGameCenterProxyComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set game center proxy enabled=$enabled")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting game center proxy enabled=$enabled", e)
+
             false
         }
     }
@@ -666,10 +596,10 @@ class WorkProfileManager @Inject constructor(
         return try {
             val state = if (enabled) COMPONENT_ENABLED_STATE_ENABLED else COMPONENT_ENABLED_STATE_DISABLED
             packageManager.setComponentEnabledSetting(getPersonalMediaImportComponent(), state, DONT_KILL_APP)
-            Log.i(TAG, "Set personal media import activity enabled=$enabled")
+
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting personal media import activity enabled=$enabled", e)
+
             false
         }
     }
@@ -701,7 +631,7 @@ class WorkProfileManager @Inject constructor(
         val policy = ProfileAppPolicyStore.resolvePolicy(context, packageName)
         val blockReason = policy.autoHideBlockReason
         if (blockReason != null) {
-            Log.i(TAG, "Skip hiding by policy reason=$reason block=$blockReason package=$packageName")
+
             return false
         }
         return hideAppInProfile(packageName)
@@ -763,14 +693,14 @@ class WorkProfileManager @Inject constructor(
         reason: String
     ): Boolean {
         if (!isResidualHideActionAllowedForReason(reason)) {
-            Log.i(TAG, "Skip residual hide action by reason reason=$reason package=$packageName action=$action")
+
             return false
         }
         val key = "$packageName:${action.name}"
         val now = System.currentTimeMillis()
         val lastRunAt = residualHideActionLastRunAt[key] ?: 0L
         if (now - lastRunAt < RESIDUAL_HIDE_ACTION_COOLDOWN_MS) {
-            Log.i(TAG, "Skip residual hide action by cooldown reason=$reason package=$packageName action=$action")
+
             return false
         }
         residualHideActionLastRunAt[key] = now
@@ -807,27 +737,16 @@ class WorkProfileManager @Inject constructor(
         val broadcastSent = runCatching {
             context.sendBroadcast(intent)
             true
-        }.onFailure { error ->
-            Log.w(TAG, "Launcher shortcut cleanup broadcast failed reason=$reason package=$packageName", error)
         }.getOrDefault(false)
-        Log.i(
-            TAG,
-            "Requested launcher shortcut cleanup reason=$reason package=$packageName broadcast=$broadcastSent generic=$allowGenericUserAppCleanup labels=${hints.labels.size} components=${hints.components.size}"
-        )
+
         return broadcastSent
     }
     private fun requestLauncherRequery(packageName: String, reason: String): Boolean {
         return runCatching {
             val workLauncherShown = showPrivacySpaceLauncherAliasInProfile()
             val personalLauncherHidden = hideGameCenterLauncherAliasInProfile()
-            Log.i(
-                TAG,
-                "Restored profile launcher during requery reason=$reason package=$packageName " +
-                    "workLauncherShown=$workLauncherShown personalLauncherHidden=$personalLauncherHidden"
-            )
+
             workLauncherShown || personalLauncherHidden
-        }.onFailure { error ->
-            Log.w(TAG, "Launcher requery request failed reason=$reason package=$packageName", error)
         }.getOrDefault(false)
     }
     fun shouldNeverAutoHide(packageName: String): Boolean {
@@ -844,16 +763,14 @@ class WorkProfileManager @Inject constructor(
                         if (isPackageKnownInProfile(packageName)) {
                             enableAppInProfile(packageName)
                         } else {
-                            Log.i(TAG, "Skip unavailable policy dependency reason=$reason package=$packageName")
+
                         }
                     }
                     if (isPackageInstalledInProfile(packageName)) {
                         unhideAppInProfile(packageName)
                     } else {
-                        Log.w(TAG, "Policy dependency is not installed reason=$reason package=$packageName")
+
                     }
-                }.onFailure { error ->
-                    Log.w(TAG, "Unable to prepare policy dependency reason=$reason package=$packageName", error)
                 }
             }
     }
@@ -866,8 +783,6 @@ class WorkProfileManager @Inject constructor(
         if (!isProfileOwner()) return null
         return runCatching {
             devicePolicyManager.isApplicationHidden(getAdminComponent(), packageName)
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to read hidden state package=$packageName", error)
         }.getOrNull()
     }
 
@@ -900,18 +815,18 @@ class WorkProfileManager @Inject constructor(
         synchronized(pendingKeepAliveHidePackages) {
             if (!pendingKeepAliveHidePackages.add(packageName)) return SafeProfileHideResult.DEFERRED_UNTIL_BACKGROUND
         }
-        Log.i(TAG, "Deferring keepAlive hide until target leaves foreground package=$packageName reason=$reason")
+
 
         fun pollUntilBackground() {
             if (!ProfileAppPolicyStore.canAutoHideApp(context, packageName)) {
                 synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
-                Log.i(TAG, "Cancelled deferred keepAlive hide because policy changed package=$packageName")
+
                 return
             }
             val elapsed = System.currentTimeMillis() - requestedAt
             if (elapsed >= KEEP_ALIVE_HIDE_MONITOR_TIMEOUT_MS) {
                 synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
-                Log.w(TAG, "Deferred keepAlive hide monitor timed out package=$packageName")
+
                 return
             }
             val current = getCurrentForegroundSnapshot(requestedAt - 2_000L, packageName)
@@ -922,7 +837,7 @@ class WorkProfileManager @Inject constructor(
             }
             val hidden = hideAppInProfileIfAllowed(packageName, reason)
             synchronized(pendingKeepAliveHidePackages) { pendingKeepAliveHidePackages.remove(packageName) }
-            Log.i(TAG, "Completed deferred keepAlive hide package=$packageName reason=$reason hidden=$hidden")
+
         }
 
         foregroundMonitorHandler.post(::pollUntilBackground)
@@ -938,7 +853,7 @@ class WorkProfileManager @Inject constructor(
         return try {
             if (!isProfileOwner()) return false
             if (packageName == context.packageName) {
-                Log.i(TAG, "Skip hiding own package to keep cross-profile entry available")
+
                 return false
             }
             val admin = getAdminComponent()
@@ -946,7 +861,7 @@ class WorkProfileManager @Inject constructor(
                 devicePolicyManager.isApplicationHidden(admin, packageName)
             }.getOrNull()
             if (!force && alreadyHidden == hidden) {
-                Log.i(TAG, "Skip setting app hidden=$hidden because state is already current: $packageName")
+
                 return false
             }
             if (force && alreadyHidden == hidden) {
@@ -957,14 +872,11 @@ class WorkProfileManager @Inject constructor(
                 devicePolicyManager.isApplicationHidden(admin, packageName)
             }.getOrNull()
             if (!force && hidden && appliedHidden != hidden) {
-                Log.w(
-                    TAG,
-                    "DPM hidden state did not apply, retrying with forced reapply package=$packageName reason=$reason changed=$changed dpmHidden=$appliedHidden"
-                )
+
                 runCatching { devicePolicyManager.setApplicationHidden(admin, packageName, false) }
-                    .onFailure { error -> Log.w(TAG, "Forced unhide step failed package=$packageName reason=$reason", error) }
+
                 changed = runCatching { devicePolicyManager.setApplicationHidden(admin, packageName, true) }
-                    .onFailure { error -> Log.w(TAG, "Forced hide step failed package=$packageName reason=$reason", error) }
+
                     .getOrDefault(false)
                 appliedHidden = runCatching {
                     devicePolicyManager.isApplicationHidden(admin, packageName)
@@ -974,13 +886,10 @@ class WorkProfileManager @Inject constructor(
                 launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).size
             }.getOrNull()
             val applied = appliedHidden == hidden
-            Log.i(
-                TAG,
-                "Set app hidden=$hidden in profile: $packageName force=$force reason=$reason changed=$changed dpmHidden=$appliedHidden applied=$applied launcherActivities=$launcherActivityCount"
-            )
+
             applied
         } catch (e: Exception) {
-            Log.e(TAG, "Error setting app hidden=$hidden: $packageName", e)
+
             false
         }
     }    fun isPackageInstalledInProfile(packageName: String): Boolean {
@@ -990,7 +899,7 @@ class WorkProfileManager @Inject constructor(
         } catch (e: PackageManager.NameNotFoundException) {
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking installed package in profile: $packageName", e)
+
             false
         }
     }
@@ -1004,7 +913,7 @@ class WorkProfileManager @Inject constructor(
         } catch (e: PackageManager.NameNotFoundException) {
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking user installed package in profile: $packageName", e)
+
             false
         }
     }
@@ -1028,7 +937,7 @@ class WorkProfileManager @Inject constructor(
             if (launcherInfo != null) Intent().apply { component = launcherInfo.componentName }
             else packageManager.getLaunchIntentForPackage(packageName)
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting launch intent for package: $packageName", e)
+
             null
         }
     }
@@ -1042,7 +951,7 @@ class WorkProfileManager @Inject constructor(
         return try {
             launcherApps.getActivityList(packageName, android.os.Process.myUserHandle()).firstOrNull()
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting launcher activity for package: $packageName", e)
+
             null
         }
     }
@@ -1062,7 +971,7 @@ class WorkProfileManager @Inject constructor(
                 PackageManager.ResolveInfoFlags.of(flags.toLong())
             ).isNotEmpty()
         } catch (e: Exception) {
-            Log.e(TAG, "Error resolving launcher activity in profile: $packageName", e)
+
             false
         }
     }
@@ -1073,7 +982,7 @@ class WorkProfileManager @Inject constructor(
                 intent.resolveActivity(packageManager) != null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error resolving file manager entry in profile: $packageName", e)
+
             false
         }
     }
@@ -1104,7 +1013,7 @@ class WorkProfileManager @Inject constructor(
                 else -> LaunchVerification.UNKNOWN
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error resolving launch verification for profile package: $packageName", e)
+
             LaunchVerification.UNKNOWN
         }
     }
@@ -1131,7 +1040,7 @@ class WorkProfileManager @Inject constructor(
                     null,
                     null
                 )
-                Log.i(TAG, "Started app via LauncherApps: $packageName component=${launcherInfo.componentName}")
+
                 true
             } else if (allowPolicyFallback && (startSpecialLaunchComponent(packageName) || startSpecialLaunchUri(packageName))) {
                 true
@@ -1139,14 +1048,14 @@ class WorkProfileManager @Inject constructor(
                 val intent = packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (intent != null) {
                     context.startActivity(intent)
-                    Log.i(TAG, "Started app via launch intent fallback: $packageName")
+
                     true
                 } else {
                     false
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting launchable app: $packageName", e)
+
             false
         }
     }
@@ -1160,10 +1069,10 @@ class WorkProfileManager @Inject constructor(
                     null,
                     null
                 )
-                Log.i(TAG, "Started app via policy LauncherApps component: $packageName component=$component")
+
                 return true
             } catch (e: Exception) {
-                Log.w(TAG, "Policy LauncherApps component failed: $packageName component=$component", e)
+
             }
 
             try {
@@ -1173,10 +1082,10 @@ class WorkProfileManager @Inject constructor(
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 )
-                Log.i(TAG, "Started app via policy explicit component: $packageName component=$component")
+
                 return true
             } catch (e: Exception) {
-                Log.w(TAG, "Policy explicit component failed: $packageName component=$component", e)
+
             }
 
             try {
@@ -1187,10 +1096,10 @@ class WorkProfileManager @Inject constructor(
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 )
-                Log.i(TAG, "Started app via policy launch component: $packageName component=$component")
+
                 return true
             } catch (e: Exception) {
-                Log.w(TAG, "Policy launch component failed: $packageName component=$component", e)
+
             }
         }
 
@@ -1203,10 +1112,10 @@ class WorkProfileManager @Inject constructor(
             .forEach { intent ->
                 try {
                     context.startActivity(intent)
-                    Log.i(TAG, "Started app via policy launch intent: $packageName action=${intent.action} uri=${intent.data}")
+
                     return true
                 } catch (e: Exception) {
-                    Log.w(TAG, "Policy launch intent failed: $packageName action=${intent.action} uri=${intent.data}", e)
+
                 }
             }
         return false
@@ -1237,11 +1146,11 @@ class WorkProfileManager @Inject constructor(
             try {
                 if (intent.resolveActivity(packageManager) != null) {
                     context.startActivity(intent)
-                    Log.i(TAG, "Started file manager browser: $packageName action=${intent.action} component=${intent.component}")
+
                     return true
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "File manager browser intent failed: $packageName action=${intent.action}", e)
+
             }
         }
 
@@ -1261,7 +1170,7 @@ class WorkProfileManager @Inject constructor(
                 .map { it.activityInfo.packageName }
                 .toSet() + setOf("com.miui.home")
         } catch (e: Exception) {
-            Log.e(TAG, "Error resolving home packages", e)
+
             setOf("com.miui.home")
         }
     }
@@ -1287,7 +1196,7 @@ class WorkProfileManager @Inject constructor(
                     }
                 }
             }
-        Log.i(TAG, "Policy-hid profile apps reason=$reason hidden=$hiddenCount processed=$processedCount")
+
         return processedCount
     }
     fun rehideAppsInProfile(apps: List<AppInfo>, reason: String): Int {
@@ -1301,10 +1210,7 @@ class WorkProfileManager @Inject constructor(
                     schedulePostHideRetries(packageName, reason)
                 }
             }
-        Log.i(
-            TAG,
-            "Rehid profile apps reason=$reason count=$hiddenCount active=${activeSession?.packageName} activeStartedAt=${activeSession?.startedAt}"
-        )
+
         return hiddenCount
     }
 
@@ -1320,14 +1226,8 @@ class WorkProfileManager @Inject constructor(
 
     private fun prepareResidualHideTarget(packageName: String, reason: String): Boolean {
         return runCatching {
-            if (!isPackageInstalledInProfile(packageName) && ProfileAppPolicyTable.shouldAttemptResidualHide(packageName)) {
-                Log.i(TAG, "Skip installExistingPackage for residual hide candidate reason=$reason package=$packageName")
-            }
             val installed = isPackageInstalledInProfile(packageName)
-            if (!installed) Log.i(TAG, "Skip residual hide for unavailable package reason=$reason package=$packageName")
             installed
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to prepare residual hide target reason=$reason package=$packageName", error)
         }.getOrDefault(false)
     }
     fun isActiveLaunchSession(packageName: String): Boolean {
@@ -1346,7 +1246,7 @@ class WorkProfileManager @Inject constructor(
             .putLong(ACTIVE_LAUNCH_STARTED_AT, now)
             .putLong(ACTIVE_LAUNCH_TOKEN, token)
             .apply()
-        Log.i(TAG, "Marked active launch session package=$packageName token=$token")
+
         return ActiveLaunchSession(packageName, now, token, 0L)
     }
 
@@ -1387,19 +1287,13 @@ class WorkProfileManager @Inject constructor(
             val snapshot = getCurrentForegroundSnapshot(session.startedAt - 2_000L, session.packageName)
             val activeStillForeground = snapshot.packageName != null && snapshot.packageName in policy.foregroundPackageNames
             if (!activeStillForeground) {
-                Log.i(
-                    TAG,
-                    "Active launch guard expired stale session active=${session.packageName} target=$packageName reason=$reason elapsed=${session.elapsedMs}"
-                )
+
                 clearActiveLaunchSession(session.packageName, session.token)
                 return false
             }
         }
 
-        Log.i(
-            TAG,
-            "Deferring auto-hide during active launch active=${session.packageName} target=$packageName reason=$reason elapsed=${session.elapsedMs}"
-        )
+
         return true
     }
 
@@ -1420,10 +1314,7 @@ class WorkProfileManager @Inject constructor(
             val elapsed = now - sessionStartedAt
             val foregroundSnapshot = getCurrentForegroundSnapshot(sessionStartedAt - 2_000L, packageName)
             val foregroundPackage = foregroundSnapshot.packageName
-            Log.i(
-                TAG,
-                "Foreground monitor package=$packageName foreground=$foregroundPackage targetMovedToBackground=${foregroundSnapshot.targetMovedToBackground} observed=$observedTargetInForeground elapsed=$elapsed"
-            )
+
 
             if (foregroundPackage != null && foregroundPackage in foregroundPackageNames) {
                 observedTargetInForeground = true
@@ -1448,19 +1339,13 @@ class WorkProfileManager @Inject constructor(
 
                 val targetForegroundElapsed = if (targetForegroundFirstSeenAt == 0L) 0L else now - targetForegroundFirstSeenAt
                 if (minForegroundMsBeforeHide > 0L && targetForegroundElapsed < minForegroundMsBeforeHide) {
-                    Log.i(
-                        TAG,
-                        "Delaying hide by policy until startup is stable package=$packageName elapsed=$targetForegroundElapsed min=$minForegroundMsBeforeHide foreground=$foregroundPackage"
-                    )
+
                     foregroundMonitorHandler.postDelayed(::pollForeground, FOREGROUND_MONITOR_POLL_MS)
                     return
                 }
 
                 if (!shouldHideAfterForegroundChange(packageName, foregroundSnapshot)) {
-                    Log.i(
-                        TAG,
-                        "Delaying hide for launched app package=$packageName transientForeground=$foregroundPackage targetMovedToBackground=${foregroundSnapshot.targetMovedToBackground}"
-                    )
+
                     foregroundMonitorHandler.postDelayed(::pollForeground, FOREGROUND_MONITOR_POLL_MS)
                     return
                 }
@@ -1470,12 +1355,12 @@ class WorkProfileManager @Inject constructor(
                 if (hidden) {
                     schedulePostHideRetries(packageName, "foregroundChange")
                 }
-                Log.i(TAG, "Hid launched profile app after safe foreground change package=$packageName foreground=$foregroundPackage hidden=$hidden")
+
                 return
             }
 
             if (elapsed >= FOREGROUND_MONITOR_TIMEOUT_MS && !observedTargetInForeground) {
-                Log.w(TAG, "Foreground monitor timed out before detecting target foreground: $packageName")
+
                 clearActiveLaunchSession(packageName, sessionToken)
                 return
             }
@@ -1505,7 +1390,7 @@ class WorkProfileManager @Inject constructor(
             }
             ForegroundSnapshot(foregroundPackage, targetMovedToBackground)
         } catch (e: Exception) {
-            Log.e(TAG, "Error reading foreground package from usage stats", e)
+
             ForegroundSnapshot(null, false)
         }
     }
@@ -1520,7 +1405,7 @@ class WorkProfileManager @Inject constructor(
     }
     fun launchAppInProfile(packageName: String): Boolean {
         if (packageName == context.packageName) {
-            Log.i(TAG, "Privacy space app selected; already in profile")
+
             return true
         }
         return try {
@@ -1533,7 +1418,7 @@ class WorkProfileManager @Inject constructor(
             if (startLaunchableApp(packageName)) {
                 val session = markActiveLaunchSession(packageName)
                 startLaunchedAppForegroundMonitor(packageName, session)
-                Log.i(TAG, "Launched app in profile: $packageName")
+
                 true
             } else {
                 if (isProfileOwner()) {
@@ -1541,7 +1426,7 @@ class WorkProfileManager @Inject constructor(
                     schedulePostHideRetries(packageName, "launchFailed")
                 }
                 clearActiveLaunchSession()
-                Log.w(TAG, "No launchable activity for package: $packageName")
+
                 false
             }
         } catch (e: Exception) {
@@ -1550,7 +1435,7 @@ class WorkProfileManager @Inject constructor(
                 schedulePostHideRetries(packageName, "launchException")
             }
             clearActiveLaunchSession()
-            Log.e(TAG, "Error launching app: $packageName", e)
+
             false
         }
     }
@@ -1564,13 +1449,13 @@ class WorkProfileManager @Inject constructor(
         return try {
             if (isProfileOwner()) {
                 devicePolicyManager.setApplicationHidden(getAdminComponent(), packageName, true)
-                Log.i(TAG, "Disabled app in profile: $packageName")
+
                 true
             } else {
                 false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error disabling app: $packageName", e)
+
             false
         }
     }

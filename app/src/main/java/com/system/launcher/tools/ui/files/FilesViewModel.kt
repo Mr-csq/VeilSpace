@@ -10,7 +10,6 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -31,7 +30,6 @@ class FilesViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        private const val TAG = "FilesViewModel"
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif")
         private val VIDEO_EXTENSIONS = setOf("mp4", "m4v", "mov", "mkv", "webm", "avi", "3gp", "3gpp", "ts", "m2ts")
     }
@@ -130,8 +128,6 @@ class FilesViewModel @Inject constructor(
         return runCatching {
             val pendingIntent = MediaStore.createDeleteRequest(context.contentResolver, uris)
             BatchDeleteResult.NeedsConfirmation(pendingIntent.intentSender, items)
-        }.onFailure { error ->
-            Log.w(TAG, "MediaStore batch delete request failed", error)
         }.getOrNull()
     }
 
@@ -164,7 +160,7 @@ class FilesViewModel @Inject constructor(
         val file = File(item.path)
         if (!file.exists()) return true
         return runCatching { file.delete() && !file.exists() }
-            .onFailure { error -> Log.w(TAG, "Direct file delete failed: ${item.path}", error) }
+
             .getOrDefault(false)
     }
 
@@ -176,14 +172,12 @@ class FilesViewModel @Inject constructor(
                 if (error is RecoverableSecurityException) {
                     return DeleteResult.NeedsConfirmation(error.userAction.actionIntent.intentSender)
                 }
-                Log.w(TAG, "MediaStore direct delete failed uri=$uri", error)
+
             }
 
         return runCatching {
             val pendingIntent = MediaStore.createDeleteRequest(resolver, listOf(uri))
             DeleteResult.NeedsConfirmation(pendingIntent.intentSender)
-        }.onFailure { error ->
-            Log.w(TAG, "MediaStore delete request failed uri=$uri", error)
         }.getOrDefault(DeleteResult.Failed)
     }
 
@@ -203,7 +197,7 @@ class FilesViewModel @Inject constructor(
                 allFiles = files
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error scanning profile storage", e)
+
             FileSpaceState(error = "读取文件失败：${e.message ?: "未知错误"}")
         }
     }
@@ -244,8 +238,6 @@ class FilesViewModel @Inject constructor(
             )?.use { cursor ->
                 cursor.toFileItems(type, uri)
             }.orEmpty()
-        }.onFailure { error ->
-            Log.w(TAG, "MediaStore query failed uri=$uri type=$type", error)
         }.getOrDefault(emptyList())
     }
 
@@ -303,8 +295,6 @@ class FilesViewModel @Inject constructor(
                 val id = cursor.getLongOrZero(cursor.getColumnIndex(MediaStore.MediaColumns._ID))
                 if (id > 0L) ContentUris.withAppendedId(collectionUri, id) else null
             }
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to resolve MediaStore uri for $path", error)
         }.getOrNull()
     }
 
@@ -381,7 +371,7 @@ class FilesViewModel @Inject constructor(
             val thumbnailPath = createVideoThumbnail(file, retriever)
             VideoMetadata(durationMs, thumbnailPath)
         } catch (e: Exception) {
-            Log.w(TAG, "Unable to read video metadata: ${file.absolutePath}", e)
+
             VideoMetadata()
         } finally {
             runCatching { retriever.release() }

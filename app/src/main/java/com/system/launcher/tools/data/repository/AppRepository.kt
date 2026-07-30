@@ -7,7 +7,6 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.os.UserHandle
-import android.util.Log
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.InstallVerification
@@ -31,7 +30,6 @@ class AppRepository @Inject constructor(
     }
 
     companion object {
-        private const val TAG = "AppRepository"
     }
 
     private fun getLaunchableApps(
@@ -59,11 +57,9 @@ class AppRepository @Inject constructor(
                 }
                 .sortedBy { it.appName }
                 .toList()
-                .also { apps ->
-                    Log.i(TAG, "Loaded ${apps.size} launchable apps from user=$userHandle includeSystem=$includeSystemApps")
-                }
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting launchable apps for user=$userHandle", e)
+
             emptyList()
         }
     }
@@ -106,11 +102,11 @@ class AppRepository @Inject constructor(
                     )
                 }
         } catch (e: Exception) {
-            Log.e(TAG, "Error getting installed profile apps", e)
+
         }
 
         return appsByPackage.values.sortedBy { it.appName }
-            .also { apps -> Log.i(TAG, "Loaded ${apps.size} installed profile apps including hidden candidates, packages=${apps.joinToString { it.packageName }}") }
+
     }
 
     fun getSystemCandidateApps(): List<AppInfo> {
@@ -173,7 +169,7 @@ class AppRepository @Inject constructor(
             PackageManager.ResolveInfoFlags.of(flags.toLong())
         ).firstOrNull()
     } catch (e: Exception) {
-        Log.e(TAG, "Error resolving launcher activity for $packageName", e)
+
         null
     }
 

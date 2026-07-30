@@ -172,13 +172,8 @@ class PersonalMediaImportActivity : AppCompatActivity() {
                     failedCount = state.failed
                 )
             )
-        }.onFailure { error ->
-            if (error is PendingIntent.CanceledException) {
-                android.util.Log.w("PersonalMediaImport", "Move result callback was cancelled", error)
-            } else {
-                android.util.Log.e("PersonalMediaImport", "Unable to send move result", error)
-            }
         }
+
     }
 
     private fun renderFailures(failedNames: List<String>) {

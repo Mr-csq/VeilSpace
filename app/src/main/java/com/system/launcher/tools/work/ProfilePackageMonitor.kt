@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.util.Log
 
 class ProfilePackageMonitor(private val context: Context) {
     private val appContext = context.applicationContext
@@ -21,12 +20,12 @@ class ProfilePackageMonitor(private val context: Context) {
                 Intent.ACTION_PACKAGE_ADDED,
                 Intent.ACTION_PACKAGE_REPLACED,
                 Intent.ACTION_PACKAGE_CHANGED -> {
-                    Log.i(TAG, "Runtime package event ${intent.action}: $packageName")
+
                     WorkProfilePackageReceiver().cacheAndHideIfNeeded(context, manager, packageName)
                 }
                 Intent.ACTION_PACKAGE_REMOVED -> {
-                    Log.i(TAG, "Runtime package removed: $packageName")
-                    Log.i(TAG, "Ignoring package removed event for cached/hidden profile package: $packageName")
+
+
                 }
             }
         }
@@ -44,9 +43,9 @@ class ProfilePackageMonitor(private val context: Context) {
         try {
             appContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
             registered = true
-            Log.i(TAG, "Runtime package monitor registered")
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error registering runtime package monitor", e)
+
         }
     }
 
@@ -55,13 +54,12 @@ class ProfilePackageMonitor(private val context: Context) {
         try {
             appContext.unregisterReceiver(receiver)
         } catch (e: Exception) {
-            Log.e(TAG, "Error unregistering runtime package monitor", e)
+
         } finally {
             registered = false
         }
     }
 
     companion object {
-        private const val TAG = "ProfilePackageMonitor"
     }
 }

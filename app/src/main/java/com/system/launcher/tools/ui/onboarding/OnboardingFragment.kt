@@ -64,7 +64,7 @@ class OnboardingFragment : Fragment() {
         super.onResume()
         // Provisioning and quiet-mode changes complete outside this activity.
         // Re-evaluate real capabilities instead of trusting a local ready flag.
-        checkProfileStatus(attemptRedirect = true)
+        checkProfileStatus()
     }
 
     private fun setupUI() {
@@ -107,12 +107,9 @@ class OnboardingFragment : Fragment() {
     /**
      * 检查 Profile 状态
      */
-    private fun checkProfileStatus(attemptRedirect: Boolean = false) {
+    private fun checkProfileStatus() {
         if (workProfileManager.isProfileOwner()) {
             viewModel.setProfileStatus(ProfileStatus.CREATED)
-            return
-        }
-        if (attemptRedirect && workProfileManager.redirectToManagedProfile(requireActivity(), com.system.launcher.tools.MainActivity::class.java)) {
             return
         }
         when (workProfileManager.connectionState()) {
@@ -139,7 +136,7 @@ class OnboardingFragment : Fragment() {
             val connected = workProfileManager.connectionState() == WorkProfileConnectionState.CONNECTED_MANAGED_PROFILE
             tvTitle.text = if (connected) "工作资料暂时无法进入" else "检测到已有工作资料"
             tvDescription.text = if (connected) {
-                "VeilSpace 已发现自己管理的工作资料，但本次跳转失败。工作资料可能处于暂停或尚未完成初始化状态。\n\n请恢复工作资料后重新连接。"
+                "VeilSpace 已发现自己管理的工作资料。工作资料可能处于暂停或尚未完成初始化状态。\n\n请恢复工作资料后重新连接。"
             } else {
                 "设备上已有其他工作资料或系统分身空间。Android 不允许 VeilSpace 接管由其他管理器创建的资料。\n\n如果要由 VeilSpace 创建隐私空间，请先在系统设置中移除现有工作资料，再返回重新检测。"
             }
@@ -153,7 +150,7 @@ class OnboardingFragment : Fragment() {
             SpaceUi.setSafeClickListener(btnCreateProfile) {
                 retryProfileConnection(showFailure = true)
             }
-            SpaceUi.setSafeClickListener(btnSkip) { checkProfileStatus(attemptRedirect = false) }
+            SpaceUi.setSafeClickListener(btnSkip) { checkProfileStatus() }
         }
     }
 
@@ -162,10 +159,7 @@ class OnboardingFragment : Fragment() {
             viewModel.setProfileStatus(ProfileStatus.CREATED)
             return
         }
-        if (workProfileManager.redirectToManagedProfile(requireActivity(), com.system.launcher.tools.MainActivity::class.java)) {
-            return
-        }
-        checkProfileStatus(attemptRedirect = false)
+        checkProfileStatus()
         if (showFailure && workProfileManager.connectionState() != WorkProfileConnectionState.NO_PROFILE) {
             showSpaceMessage("未能连接工作资料，请确认资料已启用且由 VeilSpace 创建", long = true, error = true)
         }

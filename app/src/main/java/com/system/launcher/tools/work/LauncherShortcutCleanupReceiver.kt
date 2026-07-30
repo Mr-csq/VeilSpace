@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.app.admin.DevicePolicyManager
 import android.content.Intent
-import android.util.Log
 import com.system.launcher.tools.data.policy.ProfileAppPolicyTable
 
 class LauncherShortcutCleanupReceiver : BroadcastReceiver() {
@@ -35,13 +34,9 @@ class LauncherShortcutCleanupReceiver : BroadcastReceiver() {
             labelHints = labelHints,
             componentHints = componentHints
         )
-        Log.i(
-            TAG,
-            "Launcher shortcut cleanup receiver package=$packageName cleaned=$cleaned generic=$allowGenericUserAppCleanup labels=${labelHints.size} components=${componentHints.size}"
-        )
+
     }
 
     companion object {
-        private const val TAG = "ShortcutCleanupReceiver"
     }
 }

@@ -10,7 +10,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.os.ResultReceiver
-import android.util.Log
 import com.system.launcher.tools.R
 
 class ProfileMediaTransferSourceService : Service() {
@@ -21,7 +20,7 @@ class ProfileMediaTransferSourceService : Service() {
         super.onCreate()
         createNotificationChannel()
         startForeground(NOTIFICATION_ID, createNotification())
-        Log.i(TAG, "Foreground media source service started pid=${android.os.Process.myPid()}")
+
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -45,7 +44,7 @@ class ProfileMediaTransferSourceService : Service() {
         )
         if (session == null) {
             callback.send(PREPARE_FAILED, Bundle.EMPTY)
-            Log.e(TAG, "Unable to prepare media source session id=$transferId")
+
             stopIfIdle()
             return START_NOT_STICKY
         }
@@ -57,7 +56,7 @@ class ProfileMediaTransferSourceService : Service() {
                 sourceReceiver = session.receiver
             )
         )
-        Log.i(TAG, "Prepared media source session id=$transferId count=${uris.size}")
+
         return START_NOT_STICKY
     }
 
@@ -67,7 +66,7 @@ class ProfileMediaTransferSourceService : Service() {
         destroying = true
         sessions.values.toList().forEach { it.close("service_destroyed") }
         sessions.clear()
-        Log.i(TAG, "Foreground media source service stopped")
+
         super.onDestroy()
     }
 
@@ -108,8 +107,6 @@ class ProfileMediaTransferSourceService : Service() {
     companion object {
         const val PREPARE_COMPLETE = 1
         const val PREPARE_FAILED = 2
-
-        private const val TAG = "ProfileMediaSource"
         private const val ACTION_PREPARE_TRANSFER =
             "com.system.launcher.tools.action.PREPARE_MEDIA_TRANSFER_SOURCE"
         private const val EXTRA_SOURCE_URIS = "com.system.launcher.tools.extra.SOURCE_URIS"
@@ -132,8 +129,6 @@ class ProfileMediaTransferSourceService : Service() {
                 }
                 context.startForegroundService(intent)
                 true
-            }.onFailure { error ->
-                Log.e(TAG, "Unable to start media source service id=$transferId", error)
             }.getOrDefault(false)
         }
 

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import java.time.ZoneId
@@ -71,8 +70,6 @@ class ExactAlarmScheduler @Inject constructor(
                     next.scheduledAt.toEpochMilli(),
                     pendingIntent
                 )
-            }.onFailure { error ->
-                Log.w(TAG, "Exact alarm rejected; falling back to an inexact alarm", error)
             }.isSuccess
         } else {
             false
@@ -86,8 +83,6 @@ class ExactAlarmScheduler @Inject constructor(
                     next.scheduledAt.toEpochMilli(),
                     pendingIntent
                 )
-            }.onFailure { error ->
-                Log.e(TAG, "Unable to schedule automation alarm", error)
             }.isSuccess
         }
         return AlarmScheduleStatus(
@@ -105,7 +100,7 @@ class ExactAlarmScheduler @Inject constructor(
 
     fun cancel() {
         runCatching { alarmManager.cancel(boundaryPendingIntent(null)) }
-            .onFailure { error -> Log.w(TAG, "Unable to cancel previous automation alarm", error) }
+
     }
 
     private fun boundaryPendingIntent(boundary: AutomationBoundary?): PendingIntent {
@@ -129,6 +124,5 @@ class ExactAlarmScheduler @Inject constructor(
         const val EXTRA_BOUNDARY_ID = "boundary_id"
         const val EXTRA_BOUNDARY_REVISION = "boundary_revision"
         private const val REQUEST_CODE_BOUNDARY = 41021
-        private const val TAG = "AutomationAlarm"
     }
 }

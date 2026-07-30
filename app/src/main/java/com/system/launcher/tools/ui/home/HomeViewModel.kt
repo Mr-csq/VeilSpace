@@ -6,9 +6,7 @@ import android.content.pm.LauncherApps
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.SystemClock
 import android.provider.DocumentsContract
-import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -46,7 +44,6 @@ class HomeViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
-        private const val TAG = "HomeViewModel"
         private const val INTERNAL_FILE_MANAGER_SUFFIX = ".internal.filemanager"
         private const val INTERNAL_FILE_MANAGER_LABEL = "文件管理"
     }
@@ -70,13 +67,12 @@ class HomeViewModel @Inject constructor(
 
     fun loadProfileApps(forceSubmit: Boolean = false) {
         if (loadProfileAppsJob?.isActive == true && !forceSubmit) {
-            Log.i(TAG, "Keep active home apps refresh instead of starting a duplicate request")
+
             return
         }
         loadProfileAppsJob?.cancel()
         val requestId = ++loadProfileAppsRequestId
         loadProfileAppsJob = viewModelScope.launch {
-            val loadStartedAt = SystemClock.elapsedRealtime()
             _loading.value = true
             try {
                 val cachedApps = withContext(Dispatchers.IO) {
@@ -87,10 +83,7 @@ class HomeViewModel @Inject constructor(
                     cachedApps,
                     forceSubmit = forceSubmit || _profileApps.value == null
                 )
-                Log.i(
-                    TAG,
-                    "Submitted cached home apps count=${cachedApps.size} elapsedMs=${SystemClock.elapsedRealtime() - loadStartedAt}"
-                )
+
 
                 val refreshedApps = withContext(Dispatchers.IO) {
                     ensureSystemCandidateEntriesCached()
@@ -100,10 +93,7 @@ class HomeViewModel @Inject constructor(
                     refreshed
                 }
                 submitHomeAppsIfChanged(refreshedApps, forceSubmit = forceSubmit)
-                Log.i(
-                    TAG,
-                    "Completed background home apps refresh count=${refreshedApps.size} elapsedMs=${SystemClock.elapsedRealtime() - loadStartedAt}"
-                )
+
             } finally {
                 if (requestId == loadProfileAppsRequestId) {
                     _loading.value = false
@@ -115,12 +105,12 @@ class HomeViewModel @Inject constructor(
     private fun submitHomeAppsIfChanged(apps: List<AppInfo>, forceSubmit: Boolean = false) {
         val key = apps.map(HomeAppUiKey::from)
         if (!forceSubmit && key == lastSubmittedHomeAppsKey) {
-            Log.i(TAG, "Skip submitting unchanged home apps count=${apps.size}")
+
             return
         }
         lastSubmittedHomeAppsKey = key
         _profileApps.value = apps
-        Log.i(TAG, "Submitted home apps count=${apps.size} force=$forceSubmit")
+
     }
 
     fun repairHomeAppIcons(onComplete: (Boolean) -> Unit) {
@@ -293,7 +283,7 @@ class HomeViewModel @Inject constructor(
                 }
             }
             result.onSuccess { apps -> submitHomeAppsIfChanged(apps, forceSubmit = true) }
-                .onFailure { error -> Log.e(TAG, "Unable to update home visibility for ${app.packageName}", error) }
+
             onComplete(result.isSuccess)
         }
     }
@@ -428,9 +418,9 @@ class HomeViewModel @Inject constructor(
                     diagnosticReason = "",
                     entrySource = AppEntrySource.DISCOVERED_INSTALLED
                 )
-                Log.i(TAG, "Finalized pending APK install candidate: ${app.packageName} cached=$cached")
+
             } else {
-                Log.w(TAG, "APK install candidate was not installed in profile: ${app.packageName}")
+
             }
             pendingApkInstallCandidate = null
             withContext(Dispatchers.Main) { loadProfileApps() }
@@ -468,7 +458,7 @@ class HomeViewModel @Inject constructor(
                 iconStatus = IconStatus.OK
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing APK install candidate", e)
+
             null
         }
     }
@@ -504,7 +494,7 @@ class HomeViewModel @Inject constructor(
         return runCatching {
             launcherApps.getApplicationInfo(packageName, 0, personalUser)
             InstalledPackageVersion(null, null)
-        }.onFailure { error -> Log.w(TAG, "Unable to query personal profile package version: $packageName", error) }.getOrNull()
+        }.getOrNull()
     }
 
     private data class HomeAppUiKey(
@@ -575,7 +565,7 @@ class HomeViewModel @Inject constructor(
                     }
                     DocumentsContract.deleteDocument(context.contentResolver, uri) || context.contentResolver.delete(uri, null, null) > 0
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error deleting document: $uri", e)
+
                     false
                 }
                 if (success) deleted++ else failed++

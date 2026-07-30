@@ -9,7 +9,6 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.provider.OpenableColumns
-import android.util.Log
 import android.webkit.MimeTypeMap
 import java.io.FileOutputStream
 import java.security.MessageDigest
@@ -51,7 +50,7 @@ class ProfileMediaTransferSourceSession private constructor(
         mainHandler.removeCallbacks(expiration)
         scope.cancel()
         onClosed()
-        Log.i(TAG, "Closed media source session id=$transferId reason=$reason")
+
     }
 
     private fun openRequestedSource(data: Bundle?) {
@@ -59,7 +58,7 @@ class ProfileMediaTransferSourceSession private constructor(
         val response = data?.resultReceiver(ProfileMediaTransferContract.EXTRA_SOURCE_RESPONSE)
         if (closed.get() || index !in uris.indices || response == null) {
             response?.send(ProfileMediaTransferContract.SOURCE_RESULT_FAILED, Bundle.EMPTY)
-            Log.w(TAG, "Rejected media source request id=$transferId index=$index closed=${closed.get()}")
+
             return
         }
         scope.launch { streamSource(index, response) }
@@ -69,7 +68,7 @@ class ProfileMediaTransferSourceSession private constructor(
         val input = runCatching { resolver.openInputStream(uris[index]) }.getOrNull()
         if (input == null) {
             response.send(ProfileMediaTransferContract.SOURCE_RESULT_FAILED, Bundle.EMPTY)
-            Log.w(TAG, "Unable to open media source id=$transferId index=$index")
+
             return
         }
 
@@ -111,11 +110,11 @@ class ProfileMediaTransferSourceSession private constructor(
                     putByteArray(ProfileMediaTransferContract.EXTRA_SOURCE_SHA256, digest.digest())
                 }
             )
-            Log.i(TAG, "Streamed media source id=$transferId index=$index bytes=$copiedBytes")
+
         } catch (error: Exception) {
             runCatching { writeSide?.close() }
             response.send(ProfileMediaTransferContract.SOURCE_RESULT_FAILED, Bundle.EMPTY)
-            Log.w(TAG, "Unable to stream media source id=$transferId index=$index", error)
+
         } finally {
             runCatching { input.close() }
             runCatching { writeSide?.close() }
@@ -123,7 +122,6 @@ class ProfileMediaTransferSourceSession private constructor(
     }
 
     companion object {
-        private const val TAG = "ProfileMediaSource"
         private const val COPY_BUFFER_SIZE = 256 * 1024
         private const val SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000L
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif")

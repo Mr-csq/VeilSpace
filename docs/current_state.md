@@ -1,6 +1,6 @@
 # VeilSpace 当前项目状态
 
-更新时间：2026-07-18（工作模式与年度数据维护）
+更新时间：2026-07-30（源码、设备兼容性与权限核查）
 
 本文档以当前工作区源码为事实来源，用于开发交接。当前分支仍是 `main`，大量功能和 UI 调整尚未提交，继续修改前必须先查看 `git status` 与 `git diff`。
 
@@ -17,7 +17,7 @@ VeilSpace 基于 Android Work Profile / Managed Profile 实现隐私空间：
 
 它不是文件级加密容器；keepAlive 也不等于 MIUI 电池无限制、自启动或进程常驻。
 
-包名为 `com.system.launcher.tools`；minSdk / targetSdk / compileSdk 均为 36；版本为 1.6（versionCode 7）。
+包名为 `com.system.launcher.tools`；minSdk / targetSdk / compileSdk 均为 36。应用版本由根目录 `version.properties` 驱动，当前工作区为 `1.0.0`（versionCode `1`）；每次 packaging build 会按 Gradle 脚本递增补丁版本和 versionCode，因此不能在本文件中把历史构建版本当作固定基线。
 
 平台支持策略：项目只维护 Android 16 / API 36 及以上版本，不再保留 Android 15 及以下的运行时版本判断、旧 API 重载、旧存储权限或功能降级分支。后续功能默认直接使用 API 36 能力；如需降低最低版本，必须先恢复并验证完整兼容矩阵。
 
@@ -25,9 +25,8 @@ VeilSpace 基于 Android Work Profile / Managed Profile 实现隐私空间：
 
 ## 2. 当前规模与架构
 
-- 主源码 Kotlin 文件：54 个，约 9538 行。
-- 最大类：`WorkProfileManager.kt`，约 1523 行。
-- 其次为 `HomeViewModel.kt` 约 595 行，`ProfileAppStore.kt` 与 `ProfileAppPolicyTable.kt` 各约 516 行。
+- 主源码 Kotlin 文件：69 个，约 10,564 行。
+- `WorkProfileManager.kt` 仍是核心高复杂度类，承担 provisioning、跨资料导航、包控制、启动、显隐和 launcher 清理等职责。
 - 单 Activity + Navigation；伪装页和图片预览使用独立 Activity。
 - MVVM、Hilt、Coroutines、LiveData、ViewBinding、Material Components。
 - 应用状态主要保存在 SharedPreferences/JSON 和私有图标缓存中。
@@ -62,7 +61,7 @@ Android 16 基线下直接使用 `CrossProfileApps`、现代 `PackageManager` �
 
 2026-07-14 已重新整理创建/连接流程：移除人工 `work_profile_ready` 授权判断，明确区分当前 Owner、已连接的 VeilSpace 资料、其他 DPC 资料和未创建四种状态。非 Owner 跳转失败时只能进入引导页，不能在主资料展示真实首页。其他 DPC 资料只提示冲突，不再承诺可以接管。详见 [Work Profile 模块](work_profile_module.md)。
 
-同时，真实 `MainActivity` 已改为非导出；跨资料 alias、游戏中心代理和 launcher 清理代理使用签名级权限。应用备份和设备迁移提取已关闭。
+同时，真实 `MainActivity` 已改为非导出；跨资料 alias、游戏中心代理和 launcher 清理代理使用签名级权限。应用备份和设备迁移提取已关闭。各类系统授权、Profile Owner 前提及 MIUI/HyperOS 专属依赖见 [设备兼容性与权限核查](device_compatibility_permissions.md)。
 
 ## 4. 应用发现、状态和策略
 
@@ -248,7 +247,13 @@ lint 通过不代表全部问题已经修复：Manifest 的部分受保护权限
 8. Android 16 通知权限的成功、未声明、OEM 拒绝和逐应用失败隔离。
 9. 正常/大字体、TalkBack、系统动画关闭和低端机帧率。
 
-## 13. 文档索引
+## 13. 设备权限与 OEM 适配
+
+项目当前将“能修改手机状态的能力”分为三类：用户在系统设置中授权、工作资料 Profile Owner 可执行的设备策略，以及 MIUI/HyperOS 专属的桌面/系统组件适配。Manifest 声明本身不表示普通应用已取得系统级能力，尤其是 `MANAGE_USERS` 和 `INTERACT_ACROSS_PROFILES` 必须以实际 Profile Owner 和系统能力检测结果为准。
+
+换机前应完成 [设备兼容性与权限核查](device_compatibility_permissions.md) 中的清单。该文档标记了小米专属包名、组件、URI 与 launcher 协议；非小米设备必须能力检测或单独适配，不能把它们作为通用前提。
+
+## 14. 文档索引
 
 - [README](../README.md)
 - [工作日自动化](workday_automation.md)
@@ -256,3 +261,4 @@ lint 通过不代表全部问题已经修复：Manifest 的部分受保护权限
 - [Work Profile 核心模块](work_profile_module.md)
 - [伪装入口](disguise_module.md)
 - [Windows 构建路径](build_fast_path.md)
+- [设备兼容性与权限核查](device_compatibility_permissions.md)

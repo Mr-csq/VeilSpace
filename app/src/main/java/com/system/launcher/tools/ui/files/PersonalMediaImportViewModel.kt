@@ -7,7 +7,6 @@ import android.os.Environment
 import android.os.ParcelFileDescriptor
 import android.os.ResultReceiver
 import android.provider.MediaStore
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -41,7 +40,6 @@ class PersonalMediaImportViewModel @Inject constructor(
     private val resolver = context.contentResolver
 
     companion object {
-        private const val TAG = "PersonalMediaImport"
         private const val COPY_BUFFER_SIZE = 256 * 1024
     }
 
@@ -194,10 +192,10 @@ class PersonalMediaImportViewModel @Inject constructor(
                 null
             )
             if (finalized <= 0) throw IOException("Unable to publish destination")
-            Log.i(TAG, "Imported media index=$sourceIndex name=$destinationName bytes=$copiedBytes")
+
             true
         } catch (error: Exception) {
-            Log.w(TAG, "Unable to import media name=${metadata.displayName}", error)
+
             runCatching { resolver.delete(destinationUri, null, null) }
             false
         }

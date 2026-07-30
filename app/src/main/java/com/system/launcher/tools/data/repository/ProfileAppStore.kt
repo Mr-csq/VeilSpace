@@ -5,7 +5,6 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
-import android.util.Log
 import com.system.launcher.tools.data.model.AppEntrySource
 import com.system.launcher.tools.data.model.AppInfo
 import com.system.launcher.tools.data.model.IconStatus
@@ -17,7 +16,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object ProfileAppStore {
-    private const val TAG = "ProfileAppStore"
     private const val PROFILE_APPS_PREFS = "profile_apps"
     private const val PROFILE_APP_ITEMS = "app_items"
     private const val PROFILE_APP_ITEMS_JSON = "app_items_json"
@@ -282,7 +280,7 @@ object ProfileAppStore {
                     val item = array.optJSONObject(index) ?: return@mapNotNull null
                     StoredApp.fromJson(item, index)
                 }
-            }.onFailure { error -> Log.e(TAG, "Error loading JSON profile app store", error) }
+            }
         }
 
         return prefs.getStringSet(PROFILE_APP_ITEMS, emptySet())
@@ -330,7 +328,7 @@ object ProfileAppStore {
             }
             fileName
         } catch (e: Exception) {
-            Log.e(TAG, "Error saving app icon: ${app.packageName}", e)
+
             ""
         }
     }
@@ -345,7 +343,7 @@ object ProfileAppStore {
                 null
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading app icon: $fileName", e)
+
             null
         }
     }

@@ -1,12 +1,10 @@
 package com.system.launcher.tools.ui.files
 
 import android.content.Context
-import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 
 object ProfileMediaTransferStore {
-    private const val TAG = "ProfileMediaTransfer"
     private const val PREFS_NAME = "profile_media_transfer"
     private const val KEY_PENDING_MOVE = "pending_move"
     private const val MAX_PENDING_AGE_MS = 24 * 60 * 60 * 1000L
@@ -27,7 +25,7 @@ object ProfileMediaTransferStore {
             })
         }
         prefs(context).edit().putString(KEY_PENDING_MOVE, payload.toString()).apply()
-        Log.i(TAG, "Saved pending move transferId=$transferId count=${items.size}")
+
     }
 
     fun markMoveCopied(
@@ -38,7 +36,7 @@ object ProfileMediaTransferStore {
     ): Boolean {
         val payload = readPayload(context) ?: return false
         if (payload.optString("transferId") != transferId) {
-            Log.w(TAG, "Ignoring stale move result transferId=$transferId")
+
             return false
         }
         val itemCount = payload.optJSONArray("items")?.length() ?: 0
@@ -52,10 +50,7 @@ object ProfileMediaTransferStore {
         payload.put("successfulIndices", JSONArray(normalizedIndices))
         payload.put("copyFailed", maxOf(reportedFailedCount, itemCount - normalizedIndices.size))
         prefs(context).edit().putString(KEY_PENDING_MOVE, payload.toString()).apply()
-        Log.i(
-            TAG,
-            "Recorded move copy result transferId=$transferId copied=${normalizedIndices.size} failed=${itemCount - normalizedIndices.size}"
-        )
+
         return true
     }
 
@@ -64,7 +59,7 @@ object ProfileMediaTransferStore {
         val createdAt = payload.optLong("createdAt", 0L)
         if (createdAt <= 0L || System.currentTimeMillis() - createdAt > MAX_PENDING_AGE_MS) {
             clear(context)
-            Log.w(TAG, "Discarded expired pending move")
+
             return null
         }
         if (!payload.optBoolean("completed", false)) return null
@@ -95,7 +90,7 @@ object ProfileMediaTransferStore {
         val raw = prefs(context).getString(KEY_PENDING_MOVE, null) ?: return null
         return runCatching { JSONObject(raw) }
             .onFailure {
-                Log.w(TAG, "Unable to read pending move", it)
+
                 clear(context)
             }
             .getOrNull()

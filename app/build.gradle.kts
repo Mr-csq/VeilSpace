@@ -24,11 +24,11 @@ fun incrementPatchVersion(version: String): String {
 }
 var buildVersionName = versionProperties.getProperty("VERSION_NAME", "1.6.0")
 var buildVersionCode = versionProperties.getProperty("VERSION_CODE", "7").toInt()
-if (packagingBuild) {
+if (packagingBuild && versionProperties.getProperty("VERSION_BASELINE_PACKAGED") == "true") {
     buildVersionName = incrementPatchVersion(buildVersionName)
     buildVersionCode += 1
-    versionPropertiesFile.writeText("VERSION_NAME=$buildVersionName\nVERSION_CODE=$buildVersionCode\n")
 }
+val packagedVersionProperties = "VERSION_NAME=$buildVersionName\nVERSION_CODE=$buildVersionCode\nVERSION_BASELINE_PACKAGED=true\n"
 android {
     namespace = "com.system.launcher.tools"
     compileSdk = 36
@@ -124,4 +124,12 @@ val verifyAppIcon by tasks.registering {
 
 tasks.named("preBuild").configure {
     dependsOn(verifyAppIcon)
+}
+
+tasks.configureEach {
+    if (name.startsWith("assemble") || name.startsWith("bundle")) {
+        doLast {
+            versionPropertiesFile.writeText(packagedVersionProperties)
+        }
+    }
 }

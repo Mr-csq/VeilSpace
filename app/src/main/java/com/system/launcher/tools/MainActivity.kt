@@ -9,7 +9,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Looper
 import android.view.View
-import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.navigation.fragment.NavHostFragment
@@ -36,7 +35,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         excludeCurrentTaskFromRecents()
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         if (!isSessionAuthorized()) {
             showSafeMaskAndLeaveToHome()
             return
@@ -56,7 +54,6 @@ class MainActivity : AppCompatActivity() {
             workProfileManager.configureCrossProfileEntry()
         } else {
             workProfileManager.configurePersonalProfileEntry()
-            if (workProfileManager.redirectToManagedProfile(this, MainActivity::class.java)) return
         }
 
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -81,11 +78,9 @@ class MainActivity : AppCompatActivity() {
         if (!isSessionAuthorized()) showSafeMaskAndLeaveToHome()
     }
     fun closeLauncherFolderBeforeExternalLaunch(afterHomeVisible: () -> Unit) {
-        // Launch HOME and the target back-to-back; HyperOS receives both in one turn.
-        startActivity(Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        })
+        // Keep the transition inside the current profile; explicitly launching HOME
+        // is forwarded to the parent profile by Android and shows a system disclosure.
+        moveTaskToBack(true)
         afterHomeVisible()
     }
     fun revokeSessionAfterExternalLaunch() {
@@ -105,10 +100,6 @@ class MainActivity : AppCompatActivity() {
     private fun showSafeMaskAndLeaveToHome() {
         // Never inflate sensitive content for a restored or expired hidden-space task.
         setContentView(View(this).apply { setBackgroundColor(Color.BLACK) })
-        startActivity(Intent(Intent.ACTION_MAIN).apply {
-            addCategory(Intent.CATEGORY_HOME)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
-        })
         finishAndRemoveTask()
         overridePendingTransition(0, 0)
     }

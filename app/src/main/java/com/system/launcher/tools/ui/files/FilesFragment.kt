@@ -429,6 +429,10 @@ class FilesFragment : Fragment() {
             showSpaceMessage("部分文件无法授权读取，请刷新后重试", long = true, error = true)
             return
         }
+        if (!workProfileManager.hasMediaTransferCrossProfileAccess()) {
+            showSpaceMessage("当前设备未授予跨资料访问权限", long = true, error = true)
+            return
+        }
         val transferId = UUID.randomUUID().toString()
         val resultCallback = if (operation == ProfileMediaTransferContract.Operation.MOVE) {
             ProfileMediaTransferStore.savePendingMove(requireContext(), transferId, items)

@@ -1,6 +1,6 @@
 # Work Profile 核心模块说明
 
-更新时间：2026-07-17
+更新时间：2026-07-30
 
 ## 模块定位
 
@@ -12,7 +12,7 @@ VeilSpace 使用 Android Managed Profile 隔离应用实例和数据。应用只
 
 ### `WorkProfileManager`
 
-当前约 1523 行，集中承担：
+当前是项目中职责最集中的工作资料协调器，承担：
 
 - 工作资料发现、Profile Owner 判断和 quiet mode 恢复。
 - Managed Profile provisioning、启用和移除。
@@ -108,6 +108,8 @@ MainActivity
 - `device_admin.xml` 声明 force-lock、wipe-data、reset-password、set-global-proxy 和 disable-keyguard-features，正式发布前应删除没有实际使用的策略。
 - 导出的游戏中心代理和 launcher 清理组件仍需签名权限或调用方校验。
 - `removeProfile()` 会调用 `wipeData(0)`，所有入口都必须有不可误触的强确认。
+
+完整的换机检查、用户设置授权、Profile Owner 才能执行的设备改动，以及 MIUI/HyperOS 专属依赖见 [设备兼容性与权限核查](device_compatibility_permissions.md)。其中 `MANAGE_USERS`、`INTERACT_ACROSS_PROFILES` 等 Manifest 声明不是普通运行时授权，不能作为功能成功依据。
 
 ## 数据存储
 

@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -33,7 +32,6 @@ class DisguiseActivity : AppCompatActivity() {
     private var hasOpenedPrivacySpace = false
 
     companion object {
-        private const val TAG = "DisguiseActivity"
         private const val GAME_CENTER_URL = "https://game.xiaomi.com"
         private const val STATUS_BAR_BLEND_DP = 20f
     }
@@ -71,9 +69,7 @@ class DisguiseActivity : AppCompatActivity() {
                 PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP
             )
-            Log.i(TAG, "Refreshed managed profile policies")
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to refresh managed profile policies", error)
+
         }
     }
 
@@ -205,8 +201,6 @@ class DisguiseActivity : AppCompatActivity() {
 
         return runCatching {
             startActivity(Intent(Intent.ACTION_VIEW, uri))
-        }.onFailure { error ->
-            Log.w(TAG, "Unable to open external url=$uri", error)
         }.isSuccess
     }
 
@@ -216,11 +210,11 @@ class DisguiseActivity : AppCompatActivity() {
         val manager = WorkProfileManager(this)
         if (!manager.isProfileOwner()) {
             hasOpenedPrivacySpace = false
-            Log.w(TAG, "Reject privacy entry outside the managed profile")
+
             return
         }
         (application as PrivacySpaceApp).privacySession.authorize()
-        Log.i(TAG, "Authorized in-memory privacy session from managed-profile triple tap")
+
         startActivity(Intent(this, MainActivity::class.java).apply {
             addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK or

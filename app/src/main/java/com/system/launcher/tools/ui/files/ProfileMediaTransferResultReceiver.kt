@@ -4,7 +4,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.system.launcher.tools.work.ProfileMediaTransferContract
 
 class ProfileMediaTransferResultReceiver : BroadcastReceiver() {
@@ -23,11 +22,10 @@ class ProfileMediaTransferResultReceiver : BroadcastReceiver() {
             successfulIndices,
             failedCount
         )
-        Log.i(TAG, "Received media transfer result transferId=$transferId recorded=$recorded")
+
     }
 
     companion object {
-        private const val TAG = "ProfileMediaTransfer"
 
         fun createCallback(context: Context, transferId: String): PendingIntent {
             val intent = Intent(context, ProfileMediaTransferResultReceiver::class.java).apply {

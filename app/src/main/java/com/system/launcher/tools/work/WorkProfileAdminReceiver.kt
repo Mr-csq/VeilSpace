@@ -3,7 +3,6 @@ package com.system.launcher.tools.work
 import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 
 /**
  * Work Profile 设备管理接收器
@@ -12,7 +11,6 @@ import android.util.Log
 class WorkProfileAdminReceiver : DeviceAdminReceiver() {
 
     companion object {
-        private const val TAG = "WorkProfileAdmin"
     }
 
     /**
@@ -20,7 +18,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
      */
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
-        Log.i(TAG, "Work Profile enabled")
+
 
         // 保存激活状态
         saveProfileState(context, true)
@@ -35,7 +33,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
      */
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
-        Log.i(TAG, "Work Profile disabled")
+
 
         // 更新状态
         saveProfileState(context, false)
@@ -49,7 +47,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
      */
     override fun onProfileProvisioningComplete(context: Context, intent: Intent) {
         super.onProfileProvisioningComplete(context, intent)
-        Log.i(TAG, "Profile provisioning complete")
+
 
         // 标记 Profile 已创建
         saveProfileState(context, true)
@@ -62,7 +60,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
      */
     override fun onLockTaskModeEntering(context: Context, intent: Intent, pkg: String) {
         super.onLockTaskModeEntering(context, intent, pkg)
-        Log.i(TAG, "Lock task mode entering: $pkg")
+
     }
 
     /**
@@ -70,7 +68,7 @@ class WorkProfileAdminReceiver : DeviceAdminReceiver() {
      */
     override fun onLockTaskModeExiting(context: Context, intent: Intent) {
         super.onLockTaskModeExiting(context, intent)
-        Log.i(TAG, "Lock task mode exiting")
+
     }
 
     /**

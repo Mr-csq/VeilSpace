@@ -81,6 +81,8 @@ JVM 单元测试覆盖工作日自动化边界、Work Profile 四态连接决策
 - 小米系统工具的工作资料入口并不保证可用，VeilSpace 对此采用能力检测和降级提示。
 - 真实首页不对外导出，跨资料代理使用签名级权限；应用数据和设备迁移备份默认关闭。
 
+设备迁移、系统授权、Profile Owner 前提，以及标为 MIUI/HyperOS 专属的实现均整理在 [设备兼容性与权限核查](docs/device_compatibility_permissions.md)。换机前应逐项完成该文档的核查清单；Manifest 中声明的权限不等同于系统已授予或 OEM 必然支持的能力。
+
 更多工程上下文见 [docs/current_state.md](docs/current_state.md)。
 
 其他文档：
@@ -90,3 +92,4 @@ JVM 单元测试覆盖工作日自动化边界、Work Profile 四态连接决策
 - [Work Profile 核心模块](docs/work_profile_module.md)
 - [伪装入口](docs/disguise_module.md)
 - [Windows 构建路径](docs/build_fast_path.md)
+- [设备兼容性与权限核查](docs/device_compatibility_permissions.md)

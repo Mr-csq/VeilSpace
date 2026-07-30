@@ -6,12 +6,10 @@ import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.content.pm.ResolveInfo
-import android.util.Log
 import com.system.launcher.tools.data.policy.ProfileAppPolicyTable
 import com.system.launcher.tools.data.policy.ProfileAppResidualHideAction
 
 object LauncherShortcutCleaner {
-    private const val TAG = "LauncherShortcutCleaner"
     private const val MIUI_HOME_PACKAGE = "com.miui.home"
     private const val ACTION_MIUI_UNINSTALL_SHORTCUT = "com.miui.home.launcher.action.UNINSTALL_SHORTCUT"
     private const val ACTION_ANDROID_UNINSTALL_SHORTCUT = "com.android.launcher.action.UNINSTALL_SHORTCUT"
@@ -32,7 +30,7 @@ object LauncherShortcutCleaner {
         val policy = ProfileAppPolicyTable.resolve(packageName)
         val policyAllowsCleanup = ProfileAppResidualHideAction.REMOVE_LEGACY_LAUNCHER_SHORTCUTS in policy.residualHideActions
         if (!policyAllowsCleanup && !allowGenericUserAppCleanup) {
-            Log.i(TAG, "Skip shortcut cleanup because policy does not allow it: $packageName")
+
             return false
         }
         val installedInThisProfile = isInstalledInThisProfile(context, packageName)
@@ -45,7 +43,7 @@ object LauncherShortcutCleaner {
             !policy.removeLauncherShortcutsWhenInstalledInPersonalProfile &&
             !workProfileShortcutOnlyCleanup
         ) {
-            Log.i(TAG, "Skip shortcut cleanup because package is installed in this profile: $packageName generic=$allowGenericUserAppCleanup")
+
             return false
         }
 
@@ -59,7 +57,7 @@ object LauncherShortcutCleaner {
             baseLabels
         }
         if (labels.isEmpty()) {
-            Log.i(TAG, "Skip shortcut cleanup because no labels resolved: $packageName generic=$allowGenericUserAppCleanup")
+
             return false
         }
         val components = hints.components.ifEmpty { listOf(ComponentName(packageName, "")) }
@@ -69,10 +67,7 @@ object LauncherShortcutCleaner {
                 broadcasts += sendUninstallShortcutBroadcast(context, label, component)
             }
         }
-        Log.i(
-            TAG,
-            "Requested launcher shortcut cleanup package=$packageName labels=${labels.size} components=${components.size} broadcasts=$broadcasts installedCleanup=$cleanupInstalledPackageShortcuts generic=$allowGenericUserAppCleanup workOnly=$workProfileShortcutOnlyCleanup"
-        )
+
         return broadcasts > 0
     }
 
@@ -103,8 +98,6 @@ object LauncherShortcutCleaner {
             val flags = PackageManager.GET_META_DATA or PackageManager.MATCH_UNINSTALLED_PACKAGES
             val appInfo = context.packageManager.getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags.toLong()))
             context.packageManager.getApplicationLabel(appInfo).toString()
-        }.onFailure { error ->
-            Log.i(TAG, "Unable to resolve shortcut label for package=$packageName error=${error.javaClass.simpleName}")
         }.getOrNull()
     }
 
@@ -113,8 +106,6 @@ object LauncherShortcutCleaner {
             val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
             launcherApps.getActivityList(packageName, android.os.Process.myUserHandle())
                 .map { it.componentName }
-        }.onFailure { error ->
-            Log.i(TAG, "Unable to resolve LauncherApps components for package=$packageName error=${error.javaClass.simpleName}")
         }.getOrDefault(emptyList())
     }
 
@@ -162,7 +153,7 @@ object LauncherShortcutCleaner {
                 putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent)
             }.also { cleanupIntent ->
                 runCatching { context.sendBroadcast(cleanupIntent) }
-                    .onFailure { error -> Log.w(TAG, "Shortcut cleanup broadcast failed action=$action label=$label component=$component", error) }
+
             }
         }
         return actions.size
@@ -176,7 +167,7 @@ object LauncherShortcutCleaner {
         } catch (e: PackageManager.NameNotFoundException) {
             false
         } catch (e: Exception) {
-            Log.w(TAG, "Unable to check package in current profile: $packageName", e)
+
             false
         }
     }

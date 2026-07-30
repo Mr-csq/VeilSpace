@@ -4,7 +4,6 @@ import android.content.ActivityNotFoundException
 import android.content.ComponentName
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 
 /**
@@ -13,7 +12,6 @@ import androidx.appcompat.app.AppCompatActivity
 class GameCenterProxyActivity : AppCompatActivity() {
 
     companion object {
-        private const val TAG = "GameCenterProxy"
         private const val XIAOMI_GAME_CENTER_PACKAGE = "com.xiaomi.gamecenter"
         private const val XIAOMI_GAME_CENTER_MAIN_ACTIVITY = "com.xiaomi.gamecenter.ui.MainTabActivity"
     }
@@ -21,7 +19,7 @@ class GameCenterProxyActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val launched = launchRealGameCenter()
-        Log.i(TAG, "Game Center proxy launch result=$launched")
+
         finishWithoutAnimation()
     }
 
@@ -33,19 +31,19 @@ class GameCenterProxyActivity : AppCompatActivity() {
         return try {
             val intent = packageManager.getLaunchIntentForPackage(XIAOMI_GAME_CENTER_PACKAGE)
             if (intent == null) {
-                Log.i(TAG, "Game Center launch intent not found in this profile")
+
                 false
             } else {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 startActivity(intent)
-                Log.i(TAG, "Launched Game Center by package")
+
                 true
             }
         } catch (e: ActivityNotFoundException) {
-            Log.w(TAG, "Game Center package launch activity not found", e)
+
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error launching Game Center by package", e)
+
             false
         }
     }
@@ -61,13 +59,13 @@ class GameCenterProxyActivity : AppCompatActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             startActivity(intent)
-            Log.i(TAG, "Launched Game Center by known component")
+
             true
         } catch (e: ActivityNotFoundException) {
-            Log.w(TAG, "Known Game Center component not found", e)
+
             false
         } catch (e: Exception) {
-            Log.e(TAG, "Error launching Game Center by known component", e)
+
             false
         }
     }

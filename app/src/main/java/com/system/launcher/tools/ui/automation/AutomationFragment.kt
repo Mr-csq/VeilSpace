@@ -214,6 +214,8 @@ class AutomationFragment : Fragment() {
         }
         binding.tvNextBoundary.text = automation.scheduleSnapshot.nextBoundary?.let { boundary ->
             val action = when {
+                pause?.phase == AutomationOneTimePausePhase.ACTIVE && pause.workDate == boundary.workDate ->
+                    if (boundary.type == AutomationBoundaryType.START) "开始（本次停用）" else "结束（本次停用）"
                 pause?.workDate == boundary.workDate && boundary.type == AutomationBoundaryType.START -> "跳过开始"
                 pause?.workDate == boundary.workDate -> "跳过结束"
                 boundary.type == AutomationBoundaryType.START -> "开始"
