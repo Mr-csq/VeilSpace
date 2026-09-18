@@ -42,6 +42,16 @@
 - `MANAGE_USERS` 与 `INTERACT_ACROSS_PROFILES` 的 Manifest 声明不赋予普通第三方应用系统级用户管理或任意跨资料访问权；实际能力以 Profile Owner、`CrossProfileApps` 和系统结果为准。
 - `allowBackup=false`、data extraction 与 backup rules 关闭备份/迁移提取，避免隐私空间数据进入系统备份。
 
+## 工作资料迁移桥
+
+HyperOS 本地备份在本机实测会对用户 12 的工作资料显示“当前空间无法使用本地备份，请切换到初始空间”。因此项目不再把系统本地备份当作工作资料恢复方案，而是在工作资料内提供“工作资料迁移”入口。
+
+迁移桥会读取 VeilSpace 已缓存的工作资料应用清单，逐包导出可读 APK，并打包 VeilSpace 的 `SharedPreferences`、图标缓存和工作资料可读的公共媒体/文件目录。归档生成后通过 USB 调试的本机端口下载到电脑，包含逐文件 SHA-256 清单；`scripts/verify_migration_archive.ps1` 会拒绝应用数、APK 数不足或任一文件哈希不一致的归档。
+
+迁移桥**不包含**第三方应用私有数据、登录态、硬件绑定密钥、支付凭据、系统权限或 Profile Owner 状态。当前 Android 16 / HyperOS、未 root、Bootloader 锁定的设备无法从 `/data/user/12/<package>` 提取这些内容。换机时仍需重新创建工作资料、安装 APK，并让各应用通过自身云同步恢复账号数据。
+
+本次真机归档验收：38 个应用记录、16 个非系统应用、21 个 APK、13 个公共文件，归档约 1.81 GiB，全部逐文件 SHA-256 校验通过；其中 1 个应用安装状态为 `UNKNOWN`，恢复前需要单独确认。
+
 ## [MIUI/HyperOS 专属] 依赖
 
 | 专属依赖 | 当前用途 | 非小米适配处理 |

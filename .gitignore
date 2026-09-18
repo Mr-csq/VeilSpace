@@ -115,3 +115,6 @@ lint-baseline.xml
 # Codex local Gradle scratch dirs
 /.codex-gradle-home/
 /.gradle-native/
+
+# Local device migration archives
+/.migration-backups/
