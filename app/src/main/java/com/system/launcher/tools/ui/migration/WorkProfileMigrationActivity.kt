@@ -1,6 +1,5 @@
 package com.system.launcher.tools.ui.migration
 
-import android.app.Activity
 import android.app.admin.DevicePolicyManager
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -10,18 +9,24 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.system.launcher.tools.data.model.InstallVerification
 import com.system.launcher.tools.data.repository.ProfileAppStore
+import com.system.launcher.tools.databinding.ActivityWorkProfileMigrationBinding
+import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.common.showSpace
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.security.DigestInputStream
@@ -34,79 +39,127 @@ import java.util.zip.ZipOutputStream
 import org.json.JSONArray
 import org.json.JSONObject
 
-class WorkProfileMigrationActivity : Activity() {
-    private lateinit var statusView: TextView
+class WorkProfileMigrationActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityWorkProfileMigrationBinding
     private val mainHandler = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
     private var serverSocket: ServerSocket? = null
-    private val downloadToken = UUID.randomUUID().toString()
+    @Volatile private var generationRunning = false
+    @Volatile private var archiveReady = false
+    @Volatile private var cancelRequested = false
+    private var downloadToken = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
         val devicePolicyManager = getSystemService(DevicePolicyManager::class.java)
         if (!devicePolicyManager.isProfileOwnerApp(packageName)) {
             finish()
             return
         }
 
-        setContentView(createContentView())
-        worker.execute(::prepareMigrationArchive)
+        configureWindow()
+        binding = ActivityWorkProfileMigrationBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        SpaceUi.applySystemBarInsets(binding.pageContent)
+        SpaceUi.reveal(binding.pageContent)
+        setupActions()
+        setupBackHandling()
+        clearPreviousArchive()
     }
 
     override fun onDestroy() {
+        cancelRequested = true
         serverSocket?.runCatching { close() }
         worker.shutdownNow()
+        WorkProfileMigrationArchive.clearStaleArchive(this)
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         super.onDestroy()
     }
 
-    private fun createContentView(): LinearLayout {
-        val density = resources.displayMetrics.density
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding((28 * density).toInt(), (64 * density).toInt(), (28 * density).toInt(), 0)
-            setBackgroundColor(Color.rgb(10, 18, 32))
-            addView(TextView(context).apply {
-                text = "工作资料迁移"
-                textSize = 30f
-                setTextColor(Color.WHITE)
-            })
-            addView(ProgressBar(context).apply {
-                isIndeterminate = true
-                val margin = (32 * density).toInt()
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply { setMargins(0, margin, 0, margin) }
-            })
-            statusView = TextView(context).apply {
-                text = "正在扫描工作资料中的可迁移内容..."
-                textSize = 17f
-                setTextColor(Color.rgb(210, 220, 235))
-                gravity = Gravity.CENTER
-            }
-            addView(statusView, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ))
+    private fun configureWindow() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        window.isStatusBarContrastEnforced = false
+        window.isNavigationBarContrastEnforced = false
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
         }
     }
 
+    private fun setupActions() {
+        SpaceUi.setSafeClickListener(binding.btnBack) { finish() }
+        SpaceUi.setSafeClickListener(binding.btnGenerate) { confirmGeneration() }
+        SpaceUi.attachPressScale(binding.btnBack, 0.9f)
+        SpaceUi.attachPressScale(binding.btnGenerate)
+    }
+
+    private fun setupBackHandling() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (generationRunning) {
+                    publishStatus("正在生成迁移包，请完成后再返回")
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    private fun clearPreviousArchive() {
+        binding.btnGenerate.isEnabled = false
+        publishStatus("正在清理上次生成的临时迁移包…")
+        worker.execute {
+            WorkProfileMigrationArchive.clearStaleArchive(this)
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                binding.btnGenerate.isEnabled = true
+                publishStatus("尚未生成迁移包。需要迁移时再点击下方按钮。")
+            }
+        }
+    }
+
+    private fun confirmGeneration() {
+        if (generationRunning) return
+        MaterialAlertDialogBuilder(this)
+            .setTitle("生成新的迁移包？")
+            .setMessage(
+                "将临时打包可读取的应用 APK、VeilSpace 配置和公共文件。" +
+                    "不会包含第三方应用登录态、私有数据库、密钥或支付凭据。\n\n" +
+                    "生成期间请保持页面前台和屏幕常亮。"
+            )
+            .setPositiveButton("开始生成") { _, _ -> startGeneration() }
+            .setNegativeButton("取消", null)
+            .showSpace()
+    }
+
+    private fun startGeneration() {
+        if (generationRunning) return
+        generationRunning = true
+        archiveReady = false
+        cancelRequested = false
+        downloadToken = UUID.randomUUID().toString()
+        binding.btnGenerate.isEnabled = false
+        binding.progressMigration.visibility = View.VISIBLE
+        binding.progressMigration.isIndeterminate = true
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        publishStatus("正在扫描工作资料中的可迁移内容…")
+        worker.execute(::prepareMigrationArchive)
+    }
+
     private fun prepareMigrationArchive() {
-        val outputDir = File(cacheDir, MIGRATION_DIR).apply { mkdirs() }
-        val archive = File(outputDir, ARCHIVE_NAME)
+        val archive = WorkProfileMigrationArchive.file(this)
         val manifestEntries = JSONArray()
         var writtenFiles = 0
         var writtenBytes = 0L
 
         runCatching {
+            archive.parentFile?.mkdirs()
             if (archive.exists() && !archive.delete()) error("无法替换旧迁移包")
             ZipOutputStream(BufferedOutputStream(FileOutputStream(archive))).use { zip ->
+                ensureNotCancelled()
                 zip.setLevel(Deflater.NO_COMPRESSION)
-
                 val packages = collectPackageMetadata()
                 val metadata = JSONObject().apply {
                     put("formatVersion", 1)
@@ -123,11 +176,13 @@ class WorkProfileMigrationActivity : Activity() {
                 writeBytes(zip, "metadata/device-and-packages.json", metadata.toString(2).toByteArray(), manifestEntries)
 
                 ownDataRoots().forEach { (prefix, root) ->
+                    ensureNotCancelled()
                     val result = addDirectory(zip, root, prefix, manifestEntries, writtenFiles, writtenBytes)
                     writtenFiles = result.first
                     writtenBytes = result.second
                 }
                 apkFiles().forEach { (entryName, file) ->
+                    ensureNotCancelled()
                     val digest = addFile(zip, file, entryName)
                     manifestEntries.put(manifestEntry(entryName, file.length(), digest))
                     writtenFiles += 1
@@ -135,6 +190,7 @@ class WorkProfileMigrationActivity : Activity() {
                     publishProgress(writtenFiles, writtenBytes, entryName)
                 }
                 publicStorageRoots().forEach { (prefix, root) ->
+                    ensureNotCancelled()
                     val result = addDirectory(zip, root, prefix, manifestEntries, writtenFiles, writtenBytes)
                     writtenFiles = result.first
                     writtenBytes = result.second
@@ -149,51 +205,66 @@ class WorkProfileMigrationActivity : Activity() {
             }
 
             val archiveHash = sha256(archive)
+            archiveReady = true
+            generationRunning = false
             Log.i(TAG, "READY token=$downloadToken port=$SERVER_PORT bytes=${archive.length()} sha256=$archiveHash")
-            publishStatus(
-                "迁移包已准备完成\n\n" +
-                    "文件：$writtenFiles 个\n" +
-                    "大小：${formatBytes(archive.length())}\n" +
-                    "SHA-256：$archiveHash\n\n" +
-                    "请保持此页面和 USB 调试连接，等待电脑下载。"
-            )
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                binding.progressMigration.visibility = View.GONE
+                binding.btnGenerate.isEnabled = false
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                publishStatus(
+                    "迁移包已准备完成\n\n" +
+                        "文件：$writtenFiles 个\n" +
+                        "大小：${formatBytes(archive.length())}\n" +
+                        "SHA-256：$archiveHash\n\n" +
+                        "请连接电脑下载并校验；退出本页会删除手机中的临时包。"
+                )
+            }
             serveArchive(archive)
         }.onFailure { error ->
+            generationRunning = false
+            archiveReady = false
+            WorkProfileMigrationArchive.clearStaleArchive(this)
             Log.e(TAG, "Migration archive failed", error)
-            publishStatus("迁移包生成失败：${error.message ?: error.javaClass.simpleName}")
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                binding.progressMigration.visibility = View.GONE
+                binding.btnGenerate.isEnabled = true
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                publishStatus("迁移包生成失败：${error.message ?: error.javaClass.simpleName}")
+            }
         }
     }
 
     private fun collectPackageMetadata(): JSONArray {
         val result = JSONArray()
-        ProfileAppStore.loadApps(this)
-            .sortedBy { it.packageName }
-            .forEach { cachedApp ->
-                val applicationInfo = resolveApplicationInfo(cachedApp.packageName)
-                val packageInfo = runCatching {
-                    packageManager.getPackageInfo(cachedApp.packageName, PackageManager.PackageInfoFlags.of(0))
-                }.getOrNull()
-                val systemApp = cachedApp.isSystemApp ||
-                    ((applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) ?: 0) != 0)
-                val installed = cachedApp.installVerification == InstallVerification.CONFIRMED_INSTALLED
-                result.put(JSONObject().apply {
-                    put("packageName", cachedApp.packageName)
-                    put("label", cachedApp.appName)
-                    put("systemApp", systemApp)
-                    put("showOnHome", cachedApp.showOnHome)
-                    put("sortOrder", cachedApp.sortOrder)
-                    put("keepAlive", cachedApp.keepAlive)
-                    put("installVerification", cachedApp.installVerification.name)
-                    put("launchVerification", cachedApp.launchVerification.name)
-                    put("versionName", packageInfo?.versionName ?: JSONObject.NULL)
-                    put("versionCode", packageInfo?.longVersionCode ?: JSONObject.NULL)
-                    put(
-                        "apkIncluded",
-                        installed && !systemApp && applicationInfo != null &&
-                            applicationApkFiles(applicationInfo).isNotEmpty()
-                    )
-                })
-            }
+        ProfileAppStore.loadApps(this).sortedBy { it.packageName }.forEach { cachedApp ->
+            val applicationInfo = resolveApplicationInfo(cachedApp.packageName)
+            val packageInfo = runCatching {
+                packageManager.getPackageInfo(cachedApp.packageName, PackageManager.PackageInfoFlags.of(0))
+            }.getOrNull()
+            val systemApp = cachedApp.isSystemApp ||
+                ((applicationInfo?.flags?.and(ApplicationInfo.FLAG_SYSTEM) ?: 0) != 0)
+            val installed = cachedApp.installVerification == InstallVerification.CONFIRMED_INSTALLED
+            result.put(JSONObject().apply {
+                put("packageName", cachedApp.packageName)
+                put("label", cachedApp.appName)
+                put("systemApp", systemApp)
+                put("showOnHome", cachedApp.showOnHome)
+                put("sortOrder", cachedApp.sortOrder)
+                put("keepAlive", cachedApp.keepAlive)
+                put("installVerification", cachedApp.installVerification.name)
+                put("launchVerification", cachedApp.launchVerification.name)
+                put("versionName", packageInfo?.versionName ?: JSONObject.NULL)
+                put("versionCode", packageInfo?.longVersionCode ?: JSONObject.NULL)
+                put(
+                    "apkIncluded",
+                    installed && !systemApp && applicationInfo != null &&
+                        applicationApkFiles(applicationInfo).isNotEmpty()
+                )
+            })
+        }
         return result
     }
 
@@ -202,14 +273,11 @@ class WorkProfileMigrationActivity : Activity() {
             .asSequence()
             .filter { it.installVerification == InstallVerification.CONFIRMED_INSTALLED }
             .filterNot { it.isSystemApp }
-            .mapNotNull { cachedApp ->
-                resolveApplicationInfo(cachedApp.packageName)
-            }
+            .mapNotNull { resolveApplicationInfo(it.packageName) }
             .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
             .flatMap { applicationInfo ->
                 applicationApkFiles(applicationInfo).map { file ->
-                    val name = safeSegment(file.name)
-                    "apks/${safeSegment(applicationInfo.packageName)}/$name" to file
+                    "apks/${safeSegment(applicationInfo.packageName)}/${safeSegment(file.name)}" to file
                 }
             }
             .toList()
@@ -266,8 +334,10 @@ class WorkProfileMigrationActivity : Activity() {
         var byteCount = initialBytes
         val pending = ArrayDeque<File>().apply { add(canonicalRoot) }
         while (pending.isNotEmpty()) {
+            ensureNotCancelled()
             val current = pending.removeFirst()
             current.listFiles().orEmpty().sortedBy { it.name }.forEach { child ->
+                ensureNotCancelled()
                 val canonicalChild = runCatching { child.canonicalFile }.getOrNull() ?: return@forEach
                 if (!canonicalChild.path.startsWith(canonicalRoot.path + File.separator)) return@forEach
                 when {
@@ -289,10 +359,9 @@ class WorkProfileMigrationActivity : Activity() {
 
     private fun addFile(zip: ZipOutputStream, file: File, entryName: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        val entry = ZipEntry(entryName).apply { time = file.lastModified() }
-        zip.putNextEntry(entry)
+        zip.putNextEntry(ZipEntry(entryName).apply { time = file.lastModified() })
         DigestInputStream(BufferedInputStream(FileInputStream(file)), digest).use { input ->
-            input.copyTo(zip, COPY_BUFFER_SIZE)
+            copyWithCancellation(input, zip)
         }
         zip.closeEntry()
         return digest.digest().toHex()
@@ -326,12 +395,14 @@ class WorkProfileMigrationActivity : Activity() {
 
     private fun serveArchive(archive: File) {
         serverSocket = ServerSocket(SERVER_PORT, 1, InetAddress.getByName("127.0.0.1"))
-        while (!Thread.currentThread().isInterrupted) {
+        while (!Thread.currentThread().isInterrupted && archiveReady) {
             val socket = serverSocket?.accept() ?: return
             socket.use { client ->
                 runCatching {
                     val requestLine = client.getInputStream().bufferedReader().readLine().orEmpty()
-                    val allowed = requestLine.startsWith("GET /$ARCHIVE_NAME?token=$downloadToken ")
+                    val allowed = requestLine.startsWith(
+                        "GET /${WorkProfileMigrationArchive.ARCHIVE_NAME}?token=$downloadToken "
+                    )
                     val output = BufferedOutputStream(client.getOutputStream())
                     if (!allowed) {
                         output.write("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n".toByteArray())
@@ -342,8 +413,18 @@ class WorkProfileMigrationActivity : Activity() {
                                 "Content-Length: ${archive.length()}\r\n" +
                                 "Connection: close\r\n\r\n").toByteArray()
                         )
-                        FileInputStream(archive).use { it.copyTo(output, COPY_BUFFER_SIZE) }
-                        publishStatus("电脑下载完成。请等待完整性校验，不要重置手机。")
+                        FileInputStream(archive).use { copyWithCancellation(it, output) }
+                        output.flush()
+                        archiveReady = false
+                        WorkProfileMigrationArchive.clearStaleArchive(this)
+                        mainHandler.post {
+                            if (isFinishing || isDestroyed) return@post
+                            binding.btnGenerate.isEnabled = true
+                            binding.btnGenerate.text = "生成迁移包"
+                            publishStatus("电脑下载完成，手机中的临时迁移包已自动清理。")
+                        }
+                        serverSocket?.runCatching { close() }
+                        return
                     }
                     output.flush()
                 }
@@ -357,7 +438,7 @@ class WorkProfileMigrationActivity : Activity() {
     }
 
     private fun publishStatus(message: String) {
-        mainHandler.post { if (!isFinishing && !isDestroyed) statusView.text = message }
+        mainHandler.post { if (!isFinishing && !isDestroyed) binding.tvStatus.text = message }
     }
 
     private fun sha256(file: File): String {
@@ -367,6 +448,22 @@ class WorkProfileMigrationActivity : Activity() {
             while (input.read(buffer) >= 0) Unit
         }
         return digest.digest().toHex()
+    }
+
+    private fun copyWithCancellation(input: InputStream, output: OutputStream) {
+        val buffer = ByteArray(COPY_BUFFER_SIZE)
+        while (true) {
+            ensureNotCancelled()
+            val read = input.read(buffer)
+            if (read < 0) return
+            output.write(buffer, 0, read)
+        }
+    }
+
+    private fun ensureNotCancelled() {
+        if (cancelRequested || Thread.currentThread().isInterrupted) {
+            throw InterruptedException("Migration cancelled")
+        }
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }
@@ -380,8 +477,6 @@ class WorkProfileMigrationActivity : Activity() {
 
     private companion object {
         const val TAG = "VeilSpaceMigration"
-        const val MIGRATION_DIR = "migration"
-        const val ARCHIVE_NAME = "work-profile-migration.zip"
         const val SERVER_PORT = 8766
         const val COPY_BUFFER_SIZE = 256 * 1024
         const val PROGRESS_INTERVAL = 25

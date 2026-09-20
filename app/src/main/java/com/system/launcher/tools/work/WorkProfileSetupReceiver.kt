@@ -3,6 +3,7 @@ package com.system.launcher.tools.work
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import com.system.launcher.tools.ui.migration.WorkProfileMigrationArchive
 
 /**
  * Re-applies Work Profile policies after app updates or device restart.
@@ -14,6 +15,7 @@ class WorkProfileSetupReceiver : BroadcastReceiver() {
         val isOwner = manager.isProfileOwner()
 
         if (isOwner) {
+            WorkProfileMigrationArchive.clearStaleArchive(context)
             manager.configureCrossProfileEntry()
         } else if (manager.hasCrossProfileTarget()) {
             manager.configurePersonalProfileEntry()

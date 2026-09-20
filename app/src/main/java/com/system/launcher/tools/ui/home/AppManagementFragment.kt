@@ -1,5 +1,6 @@
 package com.system.launcher.tools.ui.home
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -10,6 +11,7 @@ import androidx.navigation.fragment.findNavController
 import com.system.launcher.tools.R
 import com.system.launcher.tools.databinding.FragmentAppManagementBinding
 import com.system.launcher.tools.ui.common.SpaceUi
+import com.system.launcher.tools.ui.migration.WorkProfileMigrationActivity
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -36,10 +38,14 @@ class AppManagementFragment : Fragment() {
         SpaceUi.setSafeClickListener(binding.rowAutomation) {
             findNavController().navigate(R.id.action_app_management_to_automation)
         }
+        SpaceUi.setSafeClickListener(binding.rowMigration) {
+            startActivity(Intent(requireContext(), WorkProfileMigrationActivity::class.java))
+        }
         SpaceUi.attachPressScale(binding.btnBack, 0.9f)
         SpaceUi.attachPressScale(binding.rowAllApps, 0.985f)
         SpaceUi.attachPressScale(binding.rowIssueApps, 0.985f)
         SpaceUi.attachPressScale(binding.rowAutomation, 0.985f)
+        SpaceUi.attachPressScale(binding.rowMigration, 0.985f)
     }
 
     private fun openAppList(mode: AppManagementMode) {

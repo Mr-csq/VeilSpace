@@ -59,18 +59,10 @@
 
         <activity
             android:name=".ui.migration.WorkProfileMigrationActivity"
-            android:exported="true"
+            android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
-            android:icon="@drawable/ic_app_icon"
-            android:roundIcon="@drawable/ic_app_icon"
             android:label="工作资料迁移"
-            android:theme="@style/Theme.Transparent">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:theme="@style/Theme.PrivacySpace" />
 
         <activity
             android:name=".ui.files.ImagePreviewActivity"

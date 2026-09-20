@@ -2,6 +2,7 @@ package com.system.launcher.tools
 
 import android.app.Application
 import com.system.launcher.tools.automation.AutomationCoordinator
+import com.system.launcher.tools.ui.migration.WorkProfileMigrationArchive
 import com.system.launcher.tools.work.WorkProfileManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -22,6 +23,9 @@ class PrivacySpaceApp : Application() {
             workProfileManager.configurePersonalProfileEntry()
         }
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            if (workProfileManager.isProfileOwner()) {
+                WorkProfileMigrationArchive.clearStaleArchive(this@PrivacySpaceApp)
+            }
             automationCoordinator.recoverAndSchedule("applicationStart")
         }
     }

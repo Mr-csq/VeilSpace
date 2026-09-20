@@ -136,7 +136,7 @@ class WorkProfileManager @Inject constructor(
             configureProfileInstallPolicy(admin)
             configureProfileAccessibilityPolicy(admin)
             showPrivacySpaceLauncherAliasInProfile()
-            showWorkProfileMigrationLauncher()
+            showWorkProfileMigrationComponent()
             hideGameCenterLauncherAliasInProfile()
             hideGameCenterProxyInProfile()
             hidePersonalMediaImportActivityInProfile()
@@ -276,7 +276,7 @@ class WorkProfileManager @Inject constructor(
         return ComponentName(context.packageName, "${context.packageName}.ui.files.PersonalMediaImportActivity")
     }
 
-    private fun getWorkProfileMigrationLauncherComponent(): ComponentName {
+    private fun getWorkProfileMigrationComponent(): ComponentName {
         return ComponentName(
             context.packageName,
             "${context.packageName}.ui.migration.WorkProfileMigrationActivity"
@@ -548,9 +548,9 @@ class WorkProfileManager @Inject constructor(
         if (isProfileOwner()) return false
         val workLauncherHidden = hidePrivacySpaceLauncherAliasInProfile()
         val personalLauncherHidden = hideGameCenterLauncherAliasInProfile()
-        val migrationLauncherHidden = hideWorkProfileMigrationLauncher()
+        val migrationComponentHidden = hideWorkProfileMigrationComponent()
 
-        return workLauncherHidden && personalLauncherHidden && migrationLauncherHidden
+        return workLauncherHidden && personalLauncherHidden && migrationComponentHidden
     }
 
     fun hideGameCenterProxyInProfile(): Boolean {
@@ -562,12 +562,12 @@ class WorkProfileManager @Inject constructor(
         return setPersonalMediaImportActivityEnabled(false)
     }
 
-    private fun showWorkProfileMigrationLauncher(): Boolean {
-        return setLauncherAliasEnabled(getWorkProfileMigrationLauncherComponent(), true, "workMigration")
+    private fun showWorkProfileMigrationComponent(): Boolean {
+        return setLauncherAliasEnabled(getWorkProfileMigrationComponent(), true, "workMigration")
     }
 
-    private fun hideWorkProfileMigrationLauncher(): Boolean {
-        return setLauncherAliasEnabled(getWorkProfileMigrationLauncherComponent(), false, "workMigration")
+    private fun hideWorkProfileMigrationComponent(): Boolean {
+        return setLauncherAliasEnabled(getWorkProfileMigrationComponent(), false, "workMigration")
     }
 
     private fun setPrivacySpaceLauncherAliasEnabled(enabled: Boolean): Boolean {
