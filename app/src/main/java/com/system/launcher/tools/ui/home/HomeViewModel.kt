@@ -27,6 +27,7 @@ import com.system.launcher.tools.data.repository.ProfileAppStore
 import com.system.launcher.tools.work.WorkProfileManager
 import com.system.launcher.tools.work.WorkProfileConnectionState
 import com.system.launcher.tools.work.WorkProfilePackageReceiver
+import com.system.launcher.tools.work.ProfileAppUninstallCleaner
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import javax.inject.Inject
@@ -88,6 +89,7 @@ class HomeViewModel @Inject constructor(
                 val refreshedApps = withContext(Dispatchers.IO) {
                     ensureSystemCandidateEntriesCached()
                     refreshCachedAppStates(cacheMissingIcons = true)
+                    ProfileAppUninstallCleaner.cleanupConfirmedUninstalledApps(context, workProfileManager)
                     val refreshed = ProfileAppStore.loadHomeApps(context)
                     workProfileManager.rehideAppsInProfile(refreshed, "homeLoadProfileApps")
                     refreshed
@@ -142,12 +144,7 @@ class HomeViewModel @Inject constructor(
         ProfileAppStore.loadApps(context).forEach { app ->
             if (app.packageName == getInternalFileManagerPackageName()) return@forEach
 
-            val installedNow = workProfileManager.isPackageInstalledInProfile(app.packageName)
-            val installVerification = when {
-                installedNow -> InstallVerification.CONFIRMED_INSTALLED
-                app.installVerification == InstallVerification.CONFIRMED_MISSING -> InstallVerification.CONFIRMED_MISSING
-                else -> InstallVerification.UNKNOWN
-            }
+            val installVerification = workProfileManager.resolveInstallVerificationInProfile(app.packageName)
             val launchVerification = if (installVerification == InstallVerification.CONFIRMED_MISSING) {
                 LaunchVerification.NOT_LAUNCHABLE
             } else {

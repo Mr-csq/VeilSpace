@@ -37,7 +37,7 @@ class AppManagementDetailFragment : Fragment() {
         val app = pendingUninstallApp ?: return@registerForActivityResult
         pendingUninstallApp = null
         viewModel.finalizeUninstall(app) { removed ->
-            val message = if (removed) "应用已卸载，记录已标记为未安装" else "卸载未完成，应用仍在隐藏空间中"
+            val message = if (removed) "应用已卸载，隐藏空间记录和图标缓存已清除" else "卸载未完成，应用仍在隐藏空间中"
             showSpaceMessage(message, error = !removed)
         }
     }
@@ -248,7 +248,7 @@ class AppManagementDetailFragment : Fragment() {
     private fun confirmUninstall(app: AppInfo) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("卸载应用")
-            .setMessage("确定要从隐藏空间中卸载「${app.appName}」吗？记录会保留，方便你确认状态后再移除。")
+            .setMessage("确定要从隐藏空间中卸载「${app.appName}」吗？卸载成功后会同步清除隐藏空间记录和图标缓存。")
             .setPositiveButton("卸载") { _, _ -> uninstallApp(app) }
             .setNegativeButton("取消", null)
             .showSpace()

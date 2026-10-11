@@ -909,16 +909,26 @@ class WorkProfileManager @Inject constructor(
 
             false
         }
-    }    fun isPackageInstalledInProfile(packageName: String): Boolean {
-        return try {
-            val appInfo = getProfileApplicationInfo(packageName) ?: return false
-            (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_INSTALLED) != 0
-        } catch (e: PackageManager.NameNotFoundException) {
-            false
-        } catch (e: Exception) {
+    }
 
-            false
+    fun resolveInstallVerificationInProfile(packageName: String): InstallVerification {
+        return try {
+            val appInfo = getProfileApplicationInfo(packageName)
+                ?: return InstallVerification.CONFIRMED_MISSING
+            if ((appInfo.flags and android.content.pm.ApplicationInfo.FLAG_INSTALLED) != 0) {
+                InstallVerification.CONFIRMED_INSTALLED
+            } else {
+                InstallVerification.CONFIRMED_MISSING
+            }
+        } catch (e: PackageManager.NameNotFoundException) {
+            InstallVerification.CONFIRMED_MISSING
+        } catch (e: Exception) {
+            InstallVerification.UNKNOWN
         }
+    }
+
+    fun isPackageInstalledInProfile(packageName: String): Boolean {
+        return resolveInstallVerificationInProfile(packageName) == InstallVerification.CONFIRMED_INSTALLED
     }
 
     private fun isUserInstalledPackageInProfile(packageName: String): Boolean {

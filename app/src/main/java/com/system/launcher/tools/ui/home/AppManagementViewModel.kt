@@ -17,12 +17,14 @@ import com.system.launcher.tools.data.model.LaunchVerification
 import com.system.launcher.tools.data.repository.AppRepository
 import com.system.launcher.tools.data.repository.ProfileAppPolicyStore
 import com.system.launcher.tools.data.repository.ProfileAppStore
+import com.system.launcher.tools.work.ProfileAppUninstallCleaner
 import com.system.launcher.tools.work.WorkProfileManager
 import com.system.launcher.tools.work.WorkProfilePackageReceiver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -72,6 +74,7 @@ class AppManagementViewModel @Inject constructor(
                 if (workProfileManager.isProfileOwner()) discoverProfileApps()
                 discoverSystemCandidates()
                 refreshStatuses(cacheMissingIcons = true)
+                ProfileAppUninstallCleaner.cleanupConfirmedUninstalledApps(context, workProfileManager)
                 ProfileAppStore.loadApps(context)
             }
             if (revision != appStateRevision) return@launch
@@ -133,8 +136,7 @@ class AppManagementViewModel @Inject constructor(
     fun removeRecord(app: AppInfo) {
         viewModelScope.launch {
             val result = withContext(Dispatchers.IO) {
-                ProfileAppPolicyStore.removePackage(context, app.packageName)
-                ProfileAppStore.removeApp(context, app.packageName)
+                ProfileAppUninstallCleaner.removeHiddenSpaceRecord(context, app.packageName)
             }
             _apps.value = result
         }
@@ -147,25 +149,33 @@ class AppManagementViewModel @Inject constructor(
     fun finalizeUninstall(app: AppInfo, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val removed = withContext(Dispatchers.IO) {
-                val installed = workProfileManager.isPackageInstalledInProfile(app.packageName)
-                val installVerification = if (installed) {
-                    InstallVerification.CONFIRMED_INSTALLED
-                } else {
-                    InstallVerification.CONFIRMED_MISSING
-                }
-                val launchVerification = if (installed) {
+                val installVerification = awaitPostUninstallVerification(app.packageName)
+                val launchVerification = if (installVerification == InstallVerification.CONFIRMED_INSTALLED) {
                     workProfileManager.resolveLaunchVerificationInProfile(app.packageName, installVerification)
                 } else {
                     LaunchVerification.NOT_LAUNCHABLE
                 }
-                ProfileAppStore.updateVerificationState(
-                    context = context,
-                    packageName = app.packageName,
-                    installVerification = installVerification,
-                    launchVerification = launchVerification,
-                    diagnosticReason = if (installed) "卸载未完成，应用仍在隐藏空间中" else "应用已卸载，记录仍保留，可手动移除"
-                )
-                !installed
+                if (installVerification == InstallVerification.CONFIRMED_INSTALLED) {
+                    ProfileAppStore.updateVerificationState(
+                        context = context,
+                        packageName = app.packageName,
+                        installVerification = installVerification,
+                        launchVerification = launchVerification,
+                        diagnosticReason = "卸载未完成，应用仍在隐藏空间中"
+                    )
+                } else if (installVerification == InstallVerification.CONFIRMED_MISSING) {
+                    // 系统确认卸载成功后，同步清除隐藏空间记录、策略和图标缓存。
+                    ProfileAppUninstallCleaner.removeHiddenSpaceRecord(context, app.packageName)
+                } else {
+                    ProfileAppStore.updateVerificationState(
+                        context = context,
+                        packageName = app.packageName,
+                        installVerification = InstallVerification.UNKNOWN,
+                        launchVerification = LaunchVerification.UNKNOWN,
+                        diagnosticReason = "系统暂时无法确认卸载结果，请刷新后重试"
+                    )
+                }
+                installVerification == InstallVerification.CONFIRMED_MISSING
             }
             _apps.value = ProfileAppStore.loadApps(context)
             onComplete(removed)
@@ -177,6 +187,15 @@ class AppManagementViewModel @Inject constructor(
         _loading.value = false
         appStateRevision += 1
         return appStateRevision
+    }
+
+    private suspend fun awaitPostUninstallVerification(packageName: String): InstallVerification {
+        repeat(8) { attempt ->
+            val verification = workProfileManager.resolveInstallVerificationInProfile(packageName)
+            if (verification != InstallVerification.CONFIRMED_INSTALLED) return verification
+            if (attempt < 7) delay(250L)
+        }
+        return InstallVerification.CONFIRMED_INSTALLED
     }
 
     private fun publishUserMutation(revision: Long, apps: List<AppInfo>) {
@@ -220,12 +239,7 @@ class AppManagementViewModel @Inject constructor(
         val receiver = WorkProfilePackageReceiver()
         ProfileAppStore.loadApps(context).forEach { app ->
             if (app.packageName == getInternalFileManagerPackageName()) return@forEach
-            val installedNow = workProfileManager.isPackageInstalledInProfile(app.packageName)
-            val installVerification = when {
-                installedNow -> InstallVerification.CONFIRMED_INSTALLED
-                app.installVerification == InstallVerification.CONFIRMED_MISSING -> InstallVerification.CONFIRMED_MISSING
-                else -> InstallVerification.UNKNOWN
-            }
+            val installVerification = workProfileManager.resolveInstallVerificationInProfile(app.packageName)
             val launchVerification = if (installVerification == InstallVerification.CONFIRMED_MISSING) {
                 LaunchVerification.NOT_LAUNCHABLE
             } else {

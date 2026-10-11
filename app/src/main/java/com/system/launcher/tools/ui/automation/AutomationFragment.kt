@@ -85,6 +85,11 @@ class AutomationFragment : Fragment() {
                 if (initialRenderComplete) draft = draft.copy(customWeekdays = selectedWeekdays())
             }
         }
+        binding.switchEnabled.setOnCheckedChangeListener { _, enabled ->
+            if (initialRenderComplete) {
+                saveDraft(enabledOverride = enabled)
+            }
+        }
         SpaceUi.setSafeClickListener(binding.btnExactPermission) {
             val intent = viewModel.createExactAlarmPermissionIntent()
             if (intent == null) {
@@ -127,6 +132,7 @@ class AutomationFragment : Fragment() {
         viewModel.saving.observe(viewLifecycleOwner) { saving ->
             binding.btnSave.isEnabled = !saving
             binding.btnSave.text = if (saving) "正在保存" else "保存并重新安排"
+            binding.switchEnabled.isEnabled = !saving
         }
         viewModel.updatingOneTimePause.observe(viewLifecycleOwner) { updating ->
             oneTimePauseUpdateInProgress = updating
@@ -326,21 +332,42 @@ class AutomationFragment : Fragment() {
         binding.btnToggleDetails.text = if (detailsExpanded) "收起运行与权限详情" else "查看运行与权限详情"
     }
 
-    private fun saveDraft() {
-        val config = draft.copy(
-            enabled = binding.switchEnabled.isChecked,
-            customWeekdays = selectedWeekdays(),
-            selectedPackages = selectedPackages.toSet()
-        )
-        viewModel.save(config) { result ->
-            if (result.errors.isNotEmpty()) {
-                binding.tvValidation.visibility = View.VISIBLE
-                binding.tvValidation.text = result.errors.joinToString("\n")
-                showSpaceMessage("配置未保存，请检查提示")
-            } else {
-                binding.tvValidation.visibility = View.GONE
-                showSpaceMessage(result.alarmStatus?.message ?: "配置已保存")
+    private fun saveDraft(enabledOverride: Boolean? = null) {
+        val persist: (AutomationConfig) -> Unit = { config ->
+            viewModel.save(config) { result ->
+                if (result.errors.isNotEmpty()) {
+                    binding.tvValidation.visibility = View.VISIBLE
+                    binding.tvValidation.text = result.errors.joinToString("\n")
+                    if (enabledOverride != null) {
+                        val savedEnabled = latestScreenState?.automation?.config?.enabled ?: false
+                        draft = draft.copy(enabled = savedEnabled)
+                        initialRenderComplete = false
+                        binding.switchEnabled.isChecked = savedEnabled
+                        initialRenderComplete = true
+                    }
+                    showSpaceMessage("配置未保存，请检查提示")
+                } else {
+                    binding.tvValidation.visibility = View.GONE
+                    showSpaceMessage(result.alarmStatus?.message ?: "配置已保存")
+                }
             }
+        }
+        if (enabledOverride == null) {
+            persist(
+                draft.copy(
+                    enabled = binding.switchEnabled.isChecked,
+                    customWeekdays = selectedWeekdays(),
+                    selectedPackages = selectedPackages.toSet()
+                )
+            )
+        } else {
+            AutomationMasterSwitchSave.save(
+                enabled = enabledOverride,
+                draft = draft,
+                selectedWeekdays = selectedWeekdays(),
+                selectedPackages = selectedPackages.toSet(),
+                persist = persist
+            )
         }
     }
 
