@@ -77,11 +77,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (!isSessionAuthorized()) showSafeMaskAndLeaveToHome()
     }
-    fun closeLauncherFolderBeforeExternalLaunch(afterHomeVisible: () -> Unit) {
-        // Keep the transition inside the current profile; explicitly launching HOME
-        // is forwarded to the parent profile by Android and shows a system disclosure.
-        moveTaskToBack(true)
-        afterHomeVisible()
+    fun launchExternalAppFromVisibleTask(launch: () -> Boolean) {
+        // Submit the launch while this task is visible; Android 16 can block
+        // activity launches requested after the caller has moved to the background.
+        if (launch()) moveTaskToBack(true)
     }
     fun revokeSessionAfterExternalLaunch() {
         // The target task is already being moved to the front asynchronously. Do not

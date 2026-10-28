@@ -331,7 +331,7 @@ class HomeFragment : Fragment() {
             showUnavailableAppDialog(app)
             return
         }
-        val launchImmediately = {
+        val launchImmediately: () -> Boolean = {
             if (isAdded) {
                 val success = viewModel.launchApp(app)
                 if (success) {
@@ -339,9 +339,12 @@ class HomeFragment : Fragment() {
                 } else {
                     showUnavailableAppDialog(app)
                 }
+                success
+            } else {
+                false
             }
         }
-        (activity as? MainActivity)?.closeLauncherFolderBeforeExternalLaunch(launchImmediately)
+        (activity as? MainActivity)?.launchExternalAppFromVisibleTask(launchImmediately)
             ?: launchImmediately()
     }
     private fun showUnavailableAppDialog(app: AppInfo) {
